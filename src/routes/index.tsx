@@ -29,7 +29,7 @@ function Login() {
     try {
       const s = await guestLogin(ref, room);
       saveSession(s);
-      navigate({ to: "/gaest" });
+      navigate({ to: "/gaest", search: { t: undefined } });
     } catch (e) {
       setErr((e as Error).message);
     } finally {
