@@ -14,13 +14,212 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      bookings: {
+        Row: {
+          access_token: string
+          active: boolean
+          guest_name: string
+          id: string
+          reference: string
+          room_number: string
+        }
+        Insert: {
+          access_token?: string
+          active?: boolean
+          guest_name: string
+          id?: string
+          reference: string
+          room_number: string
+        }
+        Update: {
+          access_token?: string
+          active?: boolean
+          guest_name?: string
+          id?: string
+          reference?: string
+          room_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_room_number_fkey"
+            columns: ["room_number"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["number"]
+          },
+        ]
+      }
+      devices: {
+        Row: {
+          booking_id: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "devices_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          description: string
+          id: string
+          location: string
+          starts_at: string
+          title: string
+        }
+        Insert: {
+          description?: string
+          id?: string
+          location: string
+          starts_at: string
+          title: string
+        }
+        Update: {
+          description?: string
+          id?: string
+          location?: string
+          starts_at?: string
+          title?: string
+        }
+        Relationships: []
+      }
+      hotel_secrets: {
+        Row: {
+          key: string
+          value: string
+        }
+        Insert: {
+          key: string
+          value: string
+        }
+        Update: {
+          key?: string
+          value?: string
+        }
+        Relationships: []
+      }
+      orders: {
+        Row: {
+          created_at: string
+          details: string
+          id: string
+          room_number: string
+          status: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          details?: string
+          id?: string
+          room_number: string
+          status?: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          details?: string
+          id?: string
+          room_number?: string
+          status?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_room_number_fkey"
+            columns: ["room_number"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["number"]
+          },
+        ]
+      }
+      rooms: {
+        Row: {
+          capacity: number
+          floor: number
+          housekeeping_status: string
+          number: string
+          updated_at: string
+        }
+        Insert: {
+          capacity?: number
+          floor: number
+          housekeeping_status?: string
+          number: string
+          updated_at?: string
+        }
+        Update: {
+          capacity?: number
+          floor?: number
+          housekeeping_status?: string
+          number?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      guest_info: {
+        Args: {
+          _b: Database["public"]["Tables"]["bookings"]["Row"]
+          _device: string
+        }
+        Returns: Json
+      }
+      guest_join: { Args: { _token: string }; Returns: Json }
+      guest_login: {
+        Args: { _reference: string; _room: string }
+        Returns: Json
+      }
+      guest_order: {
+        Args: {
+          _details: string
+          _device: string
+          _token: string
+          _type: string
+        }
+        Returns: string
+      }
+      guest_session: {
+        Args: { _device: string; _token: string }
+        Returns: Json
+      }
+      guest_set_housekeeping: {
+        Args: { _device: string; _requested: boolean; _token: string }
+        Returns: string
+      }
+      register_device: {
+        Args: { _b: Database["public"]["Tables"]["bookings"]["Row"] }
+        Returns: string
+      }
+      staff_check: { Args: { _pin: string }; Returns: boolean }
+      staff_set_order_status: {
+        Args: { _order: string; _pin: string; _status: string }
+        Returns: undefined
+      }
+      staff_set_room_status: {
+        Args: { _pin: string; _room: string; _status: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
