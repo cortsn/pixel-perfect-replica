@@ -44,7 +44,7 @@ function Staff() {
   async function login(e: React.FormEvent) {
     e.preventDefault();
     const { data } = await supabase.rpc("staff_check", { _pin: input });
-    if (!data) return toast.error("Forkert personalekode");
+    if (!data) { toast.error("Forkert personalekode"); return; }
     sessionStorage.setItem("hp-staff", input);
     setPin(input);
   }
@@ -94,7 +94,7 @@ function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
     if (error) toast.error(errorText(error));
   }
   async function cycleRoom(r: Room) {
-    const next = ROOM_CYCLE[(ROOM_CYCLE.indexOf(r.housekeeping_status) + 1) % ROOM_CYCLE.length];
+    const next: HousekeepingStatus = ROOM_CYCLE[(ROOM_CYCLE.indexOf(r.housekeeping_status) + 1) % ROOM_CYCLE.length] ?? "occupied";
     setRooms((rs) => rs.map((x) => (x.number === r.number ? { ...x, housekeeping_status: next } : x)));
     const { error } = await supabase.rpc("staff_set_room_status", { _pin: pin, _room: r.number, _status: next });
     if (error) toast.error(errorText(error));

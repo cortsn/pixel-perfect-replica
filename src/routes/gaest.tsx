@@ -9,7 +9,7 @@ import {
 } from "@/lib/hotel";
 
 export const Route = createFileRoute("/gaest")({
-  validateSearch: (s: Record<string, unknown>) => ({ t: typeof s.t === "string" ? s.t : undefined }),
+  validateSearch: (s: Record<string, unknown>) => ({ t: typeof s["t"] === "string" ? (s["t"] as string) : undefined }),
   head: () => ({
     meta: [
       { title: "Mit værelse — HotelPilot" },
@@ -63,7 +63,7 @@ function GuestDashboard() {
   }, []);
 
   useEffect(() => {
-    if (!s) return;
+    if (!s) return undefined;
     const room = s.room_number;
     const load = () =>
       supabase.from("orders").select("*").eq("room_number", room).order("created_at", { ascending: false }).limit(10)
@@ -81,7 +81,7 @@ function GuestDashboard() {
   async function order(type: "towels" | "room_service", details: string) {
     if (!s) return;
     const { error } = await supabase.rpc("guest_order", { _token: s.access_token, _device: s.device_id, _type: type, _details: details });
-    if (error) return toast.error(errorText(error));
+    if (error) { toast.error(errorText(error)); return; }
     toast.success(type === "towels" ? "Håndklæder er på vej" : "Din bestilling er modtaget");
   }
 
@@ -89,7 +89,7 @@ function GuestDashboard() {
     if (!s) return;
     const want = status !== "needs_cleaning";
     const { data, error } = await supabase.rpc("guest_set_housekeeping", { _token: s.access_token, _device: s.device_id, _requested: want });
-    if (error) return toast.error(errorText(error));
+    if (error) { toast.error(errorText(error)); return; }
     setStatus(data as HousekeepingStatus);
     if (want) toast.success("Personalet er underrettet");
   }
