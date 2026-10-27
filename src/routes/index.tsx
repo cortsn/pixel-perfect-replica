@@ -6,6 +6,8 @@ import { guestLogin, saveSession } from "@/lib/hotel";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
       { title: "HotelPilot — Gæsteportal" },
       { name: "description", content: "Log ind med dit bookingnummer og få adgang til dit værelse, room service og digital nøgle." },
       { property: "og:title", content: "HotelPilot — Gæsteportal" },
