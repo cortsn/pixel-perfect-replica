@@ -15,6 +15,13 @@
       "when": 1793110829319,
       "tag": "0001_guest_stay_flows_and_pms_simulation",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793111150806,
+      "tag": "0002_order_cancellation_state",
+      "breakpoints": true
     }
   ]
 }

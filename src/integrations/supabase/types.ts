@@ -164,6 +164,7 @@ export type Database = {
       orders: {
         Row: {
           booking_id: string | null
+          cancelled: boolean
           created_at: string
           details: string
           id: string
@@ -173,6 +174,7 @@ export type Database = {
         }
         Insert: {
           booking_id?: string | null
+          cancelled?: boolean
           created_at?: string
           details?: string
           id?: string
@@ -182,6 +184,7 @@ export type Database = {
         }
         Update: {
           booking_id?: string | null
+          cancelled?: boolean
           created_at?: string
           details?: string
           id?: string
