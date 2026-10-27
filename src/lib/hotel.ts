@@ -1,6 +1,10 @@
 import { supabase } from "@/integrations/supabase/client";
 
 export type GuestSession = {
+  starts_at: string;
+  ends_at: string;
+  server_now: string;
+  dinner_choice: "hotel" | "out" | null;
   access_token: string;
   device_id: string;
   guest_name: string;
@@ -15,7 +19,7 @@ export type GuestSession = {
 };
 
 export type HousekeepingStatus = "occupied" | "needs_cleaning" | "cleaning" | "clean";
-export type OrderStatus = "pending" | "in_progress" | "done";
+export type OrderStatus = "pending" | "in_progress" | "done" | "cancelled";
 
 export const HOUSEKEEPING_LABELS: Record<HousekeepingStatus, string> = {
   occupied: "Gæst på værelset",
@@ -28,10 +32,11 @@ export const ORDER_LABELS: Record<OrderStatus, string> = {
   pending: "Afventer",
   in_progress: "I gang",
   done: "Gennemført",
+  cancelled: "Annulleret",
 };
 
 export const nextOrderStatus = (s: OrderStatus): OrderStatus =>
-  s === "pending" ? "in_progress" : s === "in_progress" ? "done" : "pending";
+  s === "pending" ? "in_progress" : s === "in_progress" ? "done" : s;
 
 const KEY = "hotelpilot-guest";
 
@@ -51,6 +56,10 @@ export function clearSession() {
 
 export function errorText(e: { message?: string } | null) {
   const m = e?.message ?? "";
+  if (m.includes("STAY_EXPIRED")) return "Dit ophold er desværre stoppet. Gå til receptionen og tjek ud. Tak for dit ophold.";
+  if (m.includes("STAY_NOT_STARTED")) return "Dit ophold er ikke startet endnu.";
+  if (m.includes("ROOM_BUSY")) return "Værelset er allerede booket i det valgte tidsrum.";
+  if (m.includes("ORDER_NOT_CANCELLABLE")) return "Bestillingen er allerede afsluttet eller annulleret.";
   if (m.includes("DEVICE_LIMIT")) return "Maks. antal enheder for værelset er nået.";
   if (m.includes("INVALID_LOGIN")) return "Bookingnummer eller værelsesnummer er forkert.";
   if (m.includes("FORBIDDEN")) return "Forkert personalekode.";

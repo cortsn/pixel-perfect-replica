@@ -1,5 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { PmsPanel } from "@/components/hotel/pms-panel";
+import { RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { errorText, HOUSEKEEPING_LABELS, nextOrderStatus, ORDER_LABELS, type HousekeepingStatus, type OrderStatus } from "@/lib/hotel";
@@ -7,6 +10,8 @@ import { errorText, HOUSEKEEPING_LABELS, nextOrderStatus, ORDER_LABELS, type Hou
 export const Route = createFileRoute("/personale")({
   head: () => ({
     meta: [
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
       { title: "Personale — HotelPilot" },
       { name: "description", content: "Live ordrer og værelsesstatus for hotellets personale." },
       { property: "og:title", content: "Personale — HotelPilot" },
@@ -16,8 +21,8 @@ export const Route = createFileRoute("/personale")({
   component: Staff,
 });
 
-type Order = { id: string; room_number: string; type: string; details: string; status: OrderStatus; created_at: string };
-type Room = { number: string; floor: number; housekeeping_status: HousekeepingStatus };
+type Order = { id: string; room_number: string; type: string; details: string; status: OrderStatus; cancelled?: boolean; created_at: string };
+type Room = { number: string; floor: number; housekeeping_status: HousekeepingStatus; exchange_towels: boolean };
 
 const ROOM_CYCLE: HousekeepingStatus[] = ["occupied", "needs_cleaning", "cleaning", "clean"];
 const ROOM_CLS: Record<HousekeepingStatus, string> = {
@@ -33,6 +38,7 @@ const ORDER_CLS: Record<OrderStatus, string> = {
   pending: "bg-status-dirty/15 text-status-dirty",
   in_progress: "bg-status-cleaning/25 text-foreground",
   done: "bg-status-clean/15 text-status-clean",
+  cancelled: "bg-muted text-muted-foreground",
 };
 
 function Staff() {
@@ -57,7 +63,7 @@ function Staff() {
           <h1 className="mt-2 text-4xl">Personale</h1>
           <input type="password" inputMode="numeric" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Personalekode"
             className="mt-8 w-full rounded-2xl border border-forest-foreground/20 bg-forest/60 px-4 py-4 text-center text-2xl tracking-[0.5em] outline-none" />
-          <button className="mt-4 w-full rounded-full bg-gradient-brass py-4 font-semibold text-accent-foreground">Log ind</button>
+          <Button className="mt-4 h-auto w-full rounded-full bg-gradient-brass py-4 font-semibold text-accent-foreground">Log ind</Button>
           <p className="mt-4 text-xs opacity-60">Demo-kode: 1234</p>
           <Link to="/" className="mt-6 inline-block text-sm opacity-70">← Til gæsteportalen</Link>
         </form>
@@ -72,8 +78,8 @@ function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
   const [rooms, setRooms] = useState<Room[]>([]);
 
   useEffect(() => {
-    const loadOrders = () => supabase.from("orders").select("*").order("created_at", { ascending: false }).limit(50).then(({ data }) => setOrders((data as Order[]) ?? []));
-    const loadRooms = () => supabase.from("rooms").select("number,floor,housekeeping_status").order("number").then(({ data }) => setRooms((data as Room[]) ?? []));
+    const loadOrders = () => supabase.from("orders").select("*").order("created_at", { ascending: false }).limit(50).then(({ data }) => setOrders(((data as Order[]) ?? []).map(o=>({...o,status:o.cancelled?"cancelled":o.status}))));
+    const loadRooms = () => supabase.from("rooms").select("number,floor,housekeeping_status,exchange_towels").order("number").then(({ data }) => setRooms((data as Room[]) ?? []));
     loadOrders(); loadRooms();
     const ch = supabase.channel(`staff-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, (p) => {
@@ -89,18 +95,23 @@ function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
 
   async function cycleOrder(o: Order) {
     const next = nextOrderStatus(o.status);
-    setOrders((os) => os.map((x) => (x.id === o.id ? { ...x, status: next } : x)));
     const { error } = await supabase.rpc("staff_set_order_status", { _pin: pin, _order: o.id, _status: next });
     if (error) toast.error(errorText(error));
+    else setOrders((os) => os.map((x) => (x.id === o.id ? { ...x, status: next } : x)));
   }
   async function cycleRoom(r: Room) {
     const next: HousekeepingStatus = ROOM_CYCLE[(ROOM_CYCLE.indexOf(r.housekeeping_status) + 1) % ROOM_CYCLE.length] ?? "occupied";
-    setRooms((rs) => rs.map((x) => (x.number === r.number ? { ...x, housekeeping_status: next } : x)));
     const { error } = await supabase.rpc("staff_set_room_status", { _pin: pin, _room: r.number, _status: next });
     if (error) toast.error(errorText(error));
+    else setRooms(rs=>rs.map(x=>x.number===r.number?{...x,housekeeping_status:next}:x));
+  }
+  async function resetRoom(r: Room) {
+    const {error}=await supabase.rpc("staff_set_room_status",{_pin:pin,_room:r.number,_status:"occupied"});
+    if(error) toast.error(errorText(error));
+    else setRooms(rs=>rs.map(x=>x.number===r.number?{...x,housekeeping_status:"occupied",exchange_towels:false}:x));
   }
 
-  const open = orders.filter((o) => o.status !== "done").length;
+  const open = orders.filter((o) => o.status !== "done" && o.status !== "cancelled").length;
   const floors = [...new Set(rooms.map((r) => r.floor))].sort((a, b) => b - a);
 
   return (
@@ -112,12 +123,12 @@ function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
         </div>
         <div className="flex items-center gap-6 text-sm">
           <span className="flex items-center gap-2"><span className="h-2 w-2 animate-pulse rounded-full bg-status-clean" />Live</span>
-          <button onClick={onLogout} className="opacity-70">Log ud</button>
+          <Button onClick={onLogout} variant="ghost" className="opacity-70">Log ud</Button>
         </div>
       </header>
 
       <main className="grid gap-6 p-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:p-8">
-        <section className="rounded-3xl bg-card p-6 shadow-soft">
+        <section className="min-w-0">
           <div className="flex items-baseline justify-between">
             <h2 className="text-3xl">Live ordrer</h2>
             <span className="text-sm text-muted-foreground">{open} åbne</span>
@@ -128,16 +139,16 @@ function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
                 <span className="w-14 font-display text-2xl">{o.room_number}</span>
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold">{o.type === "towels" ? "Håndklæder" : "Room service"}</p>
-                  <p className="truncate text-sm text-muted-foreground">{o.details} · {new Date(o.created_at).toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" })}</p>
+                  <p className="break-words text-sm text-muted-foreground">{o.details} · {new Date(o.created_at).toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" })}</p>
                 </div>
-                <button onClick={() => cycleOrder(o)} className={`rounded-full px-3 py-1 text-xs font-semibold ${ORDER_CLS[o.status]}`}>{ORDER_LABELS[o.status]}</button>
+                <Button disabled={o.status === "done" || o.status === "cancelled"} variant="ghost" onClick={() => cycleOrder(o)} className={`rounded-full px-3 py-1 text-xs font-semibold ${ORDER_CLS[o.status]}`}>{ORDER_LABELS[o.status]}</Button>
               </li>
             ))}
             {orders.length === 0 && <li className="py-8 text-center text-muted-foreground">Ingen bestillinger endnu</li>}
           </ul>
         </section>
 
-        <section className="rounded-3xl bg-card p-6 shadow-soft">
+        <section className="min-w-0">
           <h2 className="text-3xl">Værelsesstatus</h2>
           <div className="mt-3 flex flex-wrap gap-4 text-xs">
             {ROOM_CYCLE.map((s) => (
@@ -150,10 +161,15 @@ function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
                 <p className="eyebrow mb-2 text-muted-foreground">{f}. sal</p>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   {rooms.filter((r) => r.floor === f).map((r) => (
-                    <button key={r.number} onClick={() => cycleRoom(r)} className={`rounded-2xl border-2 p-4 text-left transition hover:scale-[1.02] ${ROOM_CLS[r.housekeeping_status]}`}>
+                    <div key={r.number} className={`rounded-lg border-2 p-3 ${ROOM_CLS[r.housekeeping_status]}`}>
                       <p className="font-display text-3xl">{r.number}</p>
-                      <p className="mt-1 text-xs font-semibold">{HOUSEKEEPING_LABELS[r.housekeeping_status]}</p>
-                    </button>
+                      <p className="mt-1 min-h-8 text-xs font-semibold">{HOUSEKEEPING_LABELS[r.housekeeping_status]}</p>
+                      {r.exchange_towels && <p className="mt-1 text-xs">Håndklædeskift: Ja</p>}
+                      <div className="mt-3 flex flex-wrap gap-1">
+                        <Button size="sm" variant="outline" onClick={() => cycleRoom(r)}>{r.housekeeping_status === "needs_cleaning" ? "I gang" : r.housekeeping_status === "cleaning" ? "Gennemført" : "Skift status"}</Button>
+                        <Button size="icon" variant="ghost" aria-label={`Nulstille værelse ${r.number}`} title="Nulstille" onClick={() => resetRoom(r)}><RotateCcw /></Button>
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -161,6 +177,7 @@ function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
           </div>
         </section>
       </main>
+      <PmsPanel pin={pin} rooms={rooms.map(r=>r.number)} />
     </div>
   );
 }

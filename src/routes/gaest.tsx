@@ -1,257 +1,71 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { QRCodeSVG } from "qrcode.react";
-import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import {
-  clearSession, guestJoin, guestSession, loadStored, saveSession, errorText,
-  HOUSEKEEPING_LABELS, ORDER_LABELS, type GuestSession, type HousekeepingStatus, type OrderStatus,
-} from "@/lib/hotel";
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
+import { toast } from 'sonner';
+import { KeyRound, Utensils, Sparkles, Map, Share2, Wifi, Minus, Plus, Leaf, Check, Clock, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { HotelModal } from '@/components/hotel/modal';
+import { HotelMap } from '@/components/hotel/hotel-map';
+import { supabase } from '@/integrations/supabase/client';
+import { clearSession, guestJoin, guestSession, loadStored, saveSession, errorText, HOUSEKEEPING_LABELS, ORDER_LABELS, type GuestSession, type OrderStatus } from '@/lib/hotel';
+import { stayState, countdown, cancellable, cleaningProgress } from '@/lib/stay';
 
-export const Route = createFileRoute("/gaest")({
-  validateSearch: (s: Record<string, unknown>) => ({ t: typeof s["t"] === "string" ? (s["t"] as string) : undefined }),
-  head: () => ({
-    meta: [
-      { title: "Mit værelse — HotelPilot" },
-      { name: "description", content: "Digital nøgle, room service, rengøring, Wi-Fi og dagens aktiviteter." },
-      { property: "og:title", content: "Mit værelse — HotelPilot" },
-      { property: "og:description", content: "Din digitale concierge på hotellet." },
-    ],
-  }),
-  component: GuestDashboard,
+export const Route = createFileRoute('/gaest')({
+ validateSearch:(s:Record<string,unknown>)=>({t:typeof s['t']==='string'?s['t']:undefined}),
+ head:()=>({meta:[{title:'Mit ophold — HotelPilot'},{name:'description',content:'Dit værelse, bestillinger, rengøring og aktiviteter på HotelPilot.'},{property:'og:title',content:'Mit ophold — HotelPilot'},{property:'og:description',content:'Din digitale concierge under opholdet.'},{property:'og:type',content:'website'},{name:'twitter:card',content:'summary_large_image'}]}),component:GuestDashboard,
 });
-
-type Order = { id: string; type: string; details: string; status: OrderStatus; created_at: string };
-type Event = { id: string; title: string; starts_at: string; location: string; description: string };
-
-const MENU = ["Club sandwich", "Caesar salat", "Dagens suppe", "Pommes frites", "Flaske rødvin", "Kaffe & croissant"];
-
-function GuestDashboard() {
-  const { t } = Route.useSearch();
-  const navigate = useNavigate();
-  const [s, setS] = useState<GuestSession | null>(null);
-  const [error, setError] = useState("");
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [events, setEvents] = useState<Event[]>([]);
-  const [status, setStatus] = useState<HousekeepingStatus>("occupied");
-  const [sheet, setSheet] = useState<null | "food" | "share" | "map">(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const stored = loadStored();
-        let session: GuestSession;
-        if (t && stored?.t !== t) {
-          session = await guestJoin(t);
-          saveSession(session);
-          navigate({ to: "/gaest", search: { t: undefined }, replace: true });
-        } else if (stored) {
-          session = await guestSession(stored.t, stored.d);
-        } else {
-          navigate({ to: "/" });
-          return;
-        }
-        setS(session);
-        setStatus(session.housekeeping_status);
-      } catch (e) {
-        clearSession();
-        setError((e as Error).message);
-      }
-    })();
-    supabase.from("events").select("*").order("starts_at").then(({ data }) => setEvents((data as Event[]) ?? []));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (!s) return undefined;
-    const room = s.room_number;
-    const load = () =>
-      supabase.from("orders").select("*").eq("room_number", room).order("created_at", { ascending: false }).limit(10)
-        .then(({ data }) => setOrders((data as Order[]) ?? []));
-    load();
-    const ch = supabase
-      .channel(`guest-${room}-${Math.random().toString(36).slice(2)}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders", filter: `room_number=eq.${room}` }, load)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "rooms", filter: `number=eq.${room}` }, (p) =>
-        setStatus((p.new as { housekeeping_status: HousekeepingStatus }).housekeeping_status))
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [s]);
-
-  async function order(type: "towels" | "room_service", details: string) {
-    if (!s) return;
-    const { error } = await supabase.rpc("guest_order", { _token: s.access_token, _device: s.device_id, _type: type, _details: details });
-    if (error) { toast.error(errorText(error)); return; }
-    toast.success(type === "towels" ? "Håndklæder er på vej" : "Din bestilling er modtaget");
-  }
-
-  async function toggleClean() {
-    if (!s) return;
-    const want = status !== "needs_cleaning";
-    const { data, error } = await supabase.rpc("guest_set_housekeeping", { _token: s.access_token, _device: s.device_id, _requested: want });
-    if (error) { toast.error(errorText(error)); return; }
-    setStatus(data as HousekeepingStatus);
-    if (want) toast.success("Personalet er underrettet");
-  }
-
-  if (error) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
-        <h1 className="text-3xl">Ingen adgang</h1>
-        <p className="text-muted-foreground">{error}</p>
-        <button onClick={() => navigate({ to: "/" })} className="rounded-full bg-primary px-6 py-3 text-primary-foreground">Til login</button>
-      </div>
-    );
-  }
-  if (!s) return <div className="flex min-h-screen items-center justify-center text-muted-foreground">Åbner dit værelse…</div>;
-
-  const shareUrl = `${window.location.origin}/gaest?t=${s.access_token}`;
-  const cleanOn = status === "needs_cleaning";
-
-  return (
-    <div className="mx-auto min-h-screen max-w-md pb-16">
-      <header className="bg-gradient-forest px-6 pb-10 pt-8 text-forest-foreground">
-        <div className="flex items-center justify-between">
-          <span className="font-display text-xl">HotelPilot</span>
-          <button onClick={() => { clearSession(); navigate({ to: "/" }); }} className="eyebrow text-forest-foreground/60">Log ud</button>
-        </div>
-        <p className="eyebrow mt-8 text-brass">Værelse {s.room_number}</p>
-        <h1 className="mt-2 text-4xl">God aften, {s.guest_name.split(" ")[0]}</h1>
-      </header>
-
-      <div className="-mt-6 space-y-4 px-4">
-        {/* Digital key */}
-        <section className="rounded-3xl bg-card p-5 shadow-soft">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="eyebrow text-muted-foreground">Digital nøgle</p>
-              <h2 className="mt-1 text-2xl">Værelse {s.room_number}</h2>
-            </div>
-            <span className="rounded-full bg-secondary px-3 py-1 text-xs">Aktiv</span>
-          </div>
-          <div className="mt-4 flex justify-center rounded-2xl bg-forest p-5">
-            <QRCodeSVG value={`HOTELPILOT-KEY:${s.room_number}:${s.device_id}`} size={168} bgColor="transparent" fgColor="currentColor" className="text-forest-foreground" />
-          </div>
-          <button onClick={() => toast.promise(new Promise((r) => setTimeout(r, 1200)), { loading: "Sender oplåsningssignal…", success: `Dør ${s.room_number} er låst op`, error: "Fejl" })}
-            className="mt-4 w-full rounded-full bg-gradient-brass py-4 font-semibold text-accent-foreground active:scale-[0.98]">
-            Lås dør op
-          </button>
-        </section>
-
-        {/* Quick actions */}
-        <div className="grid grid-cols-2 gap-3">
-          <Tile title="Bestil håndklæder" sub="Leveres inden 15 min" onClick={() => order("towels", "Friske håndklæder")} />
-          <Tile title="Room service" sub="Mad & drikke" onClick={() => setSheet("food")} />
-        </div>
-
-        {/* Housekeeping */}
-        <section className="flex items-center justify-between rounded-3xl bg-card p-5 shadow-soft">
-          <div>
-            <h3 className="text-xl">Rengør mit værelse nu</h3>
-            <p className="text-sm text-muted-foreground">Status: {HOUSEKEEPING_LABELS[status]}</p>
-          </div>
-          <button role="switch" aria-checked={cleanOn} aria-label="Rengør mit værelse nu" onClick={toggleClean}
-            className={`relative h-8 w-14 rounded-full transition ${cleanOn ? "bg-primary" : "bg-muted"}`}>
-            <span className={`absolute top-1 h-6 w-6 rounded-full bg-card shadow transition-all ${cleanOn ? "left-7" : "left-1"}`} />
-          </button>
-        </section>
-
-        {orders.length > 0 && (
-          <section className="rounded-3xl bg-card p-5 shadow-soft">
-            <p className="eyebrow text-muted-foreground">Dine bestillinger</p>
-            <ul className="mt-3 divide-y">
-              {orders.map((o) => (
-                <li key={o.id} className="flex items-center justify-between py-2 text-sm">
-                  <span>{o.type === "towels" ? "Håndklæder" : o.details}</span>
-                  <StatusPill status={o.status} />
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {/* Wifi */}
-        <section className="rounded-3xl bg-gradient-forest p-5 text-forest-foreground shadow-soft">
-          <p className="eyebrow text-brass">Wi-Fi</p>
-          <div className="mt-3 grid grid-cols-2 gap-4">
-            <div><p className="text-xs opacity-60">Netværk</p><p className="font-semibold">{s.wifi_ssid}</p></div>
-            <div><p className="text-xs opacity-60">Adgangskode</p>
-              <button onClick={() => { navigator.clipboard?.writeText(s.wifi_password); toast.success("Kopieret"); }} className="font-mono font-semibold">{s.wifi_password}</button>
-            </div>
-          </div>
-        </section>
-
-        {/* Events */}
-        <section className="rounded-3xl bg-card p-5 shadow-soft">
-          <p className="eyebrow text-muted-foreground">I dag på hotellet</p>
-          <ul className="mt-3 space-y-3">
-            {events.map((e) => (
-              <li key={e.id} className="flex gap-4">
-                <span className="w-12 font-display text-xl text-brass">{e.starts_at.slice(0, 5)}</span>
-                <div><p className="font-semibold">{e.title}</p><p className="text-sm text-muted-foreground">{e.location} · {e.description}</p></div>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <div className="grid grid-cols-2 gap-3">
-          <Tile title="Hotelkort" sub="Find vej" onClick={() => setSheet("map")} />
-          <Tile title="Del adgang" sub={`${s.devices}/${s.max_devices} enheder`} onClick={() => setSheet("share")} />
-        </div>
-      </div>
-
-      {sheet && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-forest/60" onClick={() => setSheet(null)}>
-          <div className="w-full max-w-md rounded-t-3xl bg-card p-6 animate-in slide-in-from-bottom" onClick={(e) => e.stopPropagation()}>
-            {sheet === "food" && (
-              <>
-                <h2 className="text-3xl">Room service</h2>
-                <div className="mt-4 space-y-2">
-                  {MENU.map((m) => (
-                    <button key={m} onClick={() => { order("room_service", m); setSheet(null); }} className="flex w-full justify-between rounded-2xl border px-4 py-3 text-left hover:bg-secondary">
-                      <span>{m}</span><span className="text-brass">Bestil</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-            {sheet === "share" && (
-              <>
-                <h2 className="text-3xl">Del adgang</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Medgæster kan scanne koden for at åbne værelset på deres egen telefon. Maks. {s.max_devices} enheder.</p>
-                <div className="mt-4 flex justify-center rounded-2xl bg-secondary p-5"><QRCodeSVG value={shareUrl} size={180} bgColor="transparent" /></div>
-                <button onClick={() => { navigator.clipboard?.writeText(shareUrl); toast.success("Link kopieret"); }} className="mt-4 w-full rounded-full bg-primary py-3 text-primary-foreground">Kopiér link</button>
-              </>
-            )}
-            {sheet === "map" && (
-              <>
-                <h2 className="text-3xl">Hotelkort</h2>
-                <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
-                  {["Taghave · 4. sal", "Bar Nord · 4. sal", "Spa · 4. sal", "Værelser 301–304", "Værelser 201–204", "Værelser 101–104", "Restaurant Lys", "Lobby & reception", "Vinkælder · K"].map((z, i) => (
-                    <div key={z} className={`flex aspect-square items-center justify-center rounded-xl p-2 ${z.includes(s.room_number.slice(0, 1) + "0") ? "bg-gradient-brass text-accent-foreground" : i % 2 ? "bg-secondary" : "bg-muted"}`}>{z}</div>
-                  ))}
-                </div>
-              </>
-            )}
-            <button onClick={() => setSheet(null)} className="mt-4 w-full py-2 text-sm text-muted-foreground">Luk</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+type Order={id:string;type:string;details:string;status:OrderStatus;created_at:string};
+type Event={id:string;title:string;starts_at:string;location:string;description:string};
+type Sheet='towels'|'clean'|'food'|'share'|'map'|'wifi'|null;
+const MENU=['Club sandwich','Caesar salat','Dagens suppe','Pommes frites','Flaske rødvin','Kaffe & croissant'];
+function GuestDashboard(){
+ const {t}=Route.useSearch();const navigate=useNavigate();
+ const [s,setS]=useState<GuestSession|null>(null);const [error,setError]=useState('');const [expired,setExpired]=useState(false);
+ const [orders,setOrders]=useState<Order[]>([]);const [events,setEvents]=useState<Event[]>([]);
+ const [sheet,setSheet]=useState<Sheet>(null);const [quantity,setQuantity]=useState(2);const [towels,setTowels]=useState(false);
+ const [food,setFood]=useState('');const [foodStep,setFoodStep]=useState(0);const [busy,setBusy]=useState(false);
+ const [clock,setClock]=useState(0);const [offset,setOffset]=useState(0);const [origin,setOrigin]=useState('');const [wifiConnected,setWifiConnected]=useState(false);
+ const state=s?stayState(s.starts_at,s.ends_at,clock):'waiting';
+ function fail(e:{message?:string}){const msg=errorText(e);if(e.message?.includes('STAY_EXPIRED')){setExpired(true);setSheet(null);clearSession();}toast.error(msg);}
+ function apply(session:GuestSession){setS(session);const delta=Date.parse(session.server_now)-Date.now();setOffset(delta);setClock(Date.now()+delta);}
+ useEffect(()=>{setOrigin(window.location.origin);let alive=true;(async()=>{try{const stored=loadStored();let session:GuestSession;if(t&&stored?.t!==t){session=await guestJoin(t);saveSession(session);void navigate({to:'/gaest',search:{t:undefined},replace:true});}else if(stored){session=await guestSession(stored.t,stored.d);}else{void navigate({to:'/'});return;}if(alive)apply(session);}catch(e){if(alive){clearSession();const msg=(e as Error).message;setError(msg);if(msg.includes('ophold er desværre stoppet'))setExpired(true);}}})();return()=>{alive=false;};},[t,navigate]);
+ useEffect(()=>{const tick=()=>setClock(Date.now()+offset);const timer=setInterval(tick,250);document.addEventListener('visibilitychange',tick);return()=>{clearInterval(timer);document.removeEventListener('visibilitychange',tick);};},[offset]);
+ useEffect(()=>{if(!s)return;const remaining=Date.parse(s.ends_at)-Date.now()-offset;if(remaining<=0){setExpired(true);setSheet(null);clearSession();return;}const timer=setTimeout(()=>{setExpired(true);setSheet(null);clearSession();},Math.min(remaining,2147483647));return()=>clearTimeout(timer);},[s,offset]);
+ useEffect(()=>{if(!s||expired)return;let alive=true;const refresh=async()=>{try{const session=await guestSession(s.access_token,s.device_id);if(alive)apply(session);}catch(e){if(alive){setExpired(true);setSheet(null);clearSession();setError((e as Error).message);}}};const timer=setInterval(refresh,5000);const ch=supabase.channel(`guest-room-${Math.random().toString(36).slice(2)}`).on('postgres_changes',{event:'UPDATE',schema:'public',table:'rooms',filter:`number=eq.${s.room_number}`},refresh).subscribe();return()=>{alive=false;clearInterval(timer);void supabase.removeChannel(ch);};},[s?.access_token,s?.device_id,expired]);
+ const loadOrders=async()=>{if(!s)return;const {data,error}=await supabase.rpc('guest_orders',{_token:s.access_token,_device:s.device_id});if(error){fail(error);return;}setOrders((data as unknown as Order[])??[]);};
+ useEffect(()=>{if(!s||state!=='active'||expired)return;void loadOrders();void guestSession(s.access_token,s.device_id).then(apply).catch(()=>{});supabase.from('events').select('*').order('starts_at').then(({data})=>setEvents((data as Event[])??[]));const timer=setInterval(loadOrders,5000);const ch=supabase.channel(`guest-orders-${Math.random().toString(36).slice(2)}`).on('postgres_changes',{event:'*',schema:'public',table:'orders',filter:`room_number=eq.${s.room_number}`},loadOrders).subscribe();return()=>{clearInterval(timer);void supabase.removeChannel(ch);};},[s?.access_token,s?.device_id,state,expired]);
+ async function sendOrder(type:'towels'|'room_service',details:string){if(!s||busy)return;setBusy(true);const {error}=await supabase.rpc('guest_order',{_token:s.access_token,_device:s.device_id,_type:type,_details:details});setBusy(false);if(error){fail(error);return;}setSheet(null);toast.success('Din bestilling er modtaget');await loadOrders();}
+ async function requestCleaning(){if(!s||busy)return;setBusy(true);const {error}=await supabase.rpc('guest_request_cleaning',{_token:s.access_token,_device:s.device_id,_towels:towels});setBusy(false);if(error){fail(error);return;}setS({...s,housekeeping_status:'needs_cleaning'});setSheet(null);toast.success('Personalet er underrettet');}
+ async function cancel(id:string){if(!s||busy)return;setBusy(true);const {error}=await supabase.rpc('guest_cancel_order',{_token:s.access_token,_device:s.device_id,_order:id});setBusy(false);if(error){fail(error);return;}await loadOrders();toast.success('Bestillingen er annulleret');}
+ async function dinner(choice:'hotel'|'out'){if(!s||busy)return;setBusy(true);const {error}=await supabase.rpc('guest_dinner',{_token:s.access_token,_device:s.device_id,_choice:choice});setBusy(false);if(error){fail(error);return;}setS({...s,dinner_choice:choice});toast.success('Tak for dit svar');}
+ async function unlock(){if(!s||busy)return;setBusy(true);const {data,error}=await supabase.rpc('guest_unlock',{_token:s.access_token,_device:s.device_id});setBusy(false);if(error){fail(error);return;}toast.success(String(data));}
+ function logout(){clearSession();void navigate({to:'/'});}
+ if(expired||state==='expired')return <div className="flex min-h-screen flex-col items-center justify-center gap-5 px-7 text-center"><KeyRound className="h-10 w-10 text-brass"/><p className="font-display text-2xl">HotelPilot</p><h1 className="text-4xl">Tak for dit ophold</h1><p className="max-w-sm text-muted-foreground">Dit ophold er desværre stoppet. Gå til receptionen og tjek ud. Tak for dit ophold.</p><Button onClick={logout}>Til forsiden</Button></div>;
+ if(error)return <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center"><h1 className="text-3xl">Ingen adgang</h1><p>{error}</p><Button onClick={logout}>Til login</Button></div>;
+ if(!s)return <div className="flex min-h-screen items-center justify-center">Åbner dit værelse…</div>;
+ if(state==='waiting')return <div className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center gap-5 px-6 text-center"><Clock className="h-10 w-10 text-brass"/><p className="font-display text-2xl">HotelPilot</p><h1 className="text-4xl">Velkommen, {s.guest_name.split(' ')[0]}</h1><p>Timer til start af dit ophold</p><p className="font-display text-5xl tabular-nums" role="timer">{countdown(s.starts_at,clock)}</p><p className="text-sm text-muted-foreground">Dit værelse og hotellets tjenester åbner {new Date(s.starts_at).toLocaleString('da-DK')}.</p><Button variant="outline" onClick={logout}>Log ud</Button></div>;
+ const shareUrl=`${origin}/gaest?t=${s.access_token}`;const progress=cleaningProgress(s.housekeeping_status);
+ return <div className="mx-auto min-h-screen max-w-md pb-10">
+ <header className="bg-gradient-forest px-6 pb-7 pt-7 text-forest-foreground"><div className="flex items-center justify-between"><span className="font-display text-2xl">HotelPilot</span><Button variant="ghost" size="sm" onClick={logout}>Log ud</Button></div><p className="eyebrow mt-7 text-brass">Værelse {s.room_number}</p><h1 className="mt-2 text-4xl">Velkommen, {s.guest_name.split(' ')[0]}</h1><p className="mt-2 text-xs text-forest-foreground/70">Check ud {new Date(s.ends_at).toLocaleString('da-DK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</p></header>
+ <main className="space-y-5 px-5">
+ <section className="border-b py-6"><div className="flex items-center justify-between"><div><p className="eyebrow text-muted-foreground">Digital nøgle</p><h2 className="text-3xl">Værelse {s.room_number}</h2></div><span className="flex items-center gap-1 text-xs text-status-clean"><Check className="h-4 w-4"/>Aktiv</span></div><div className="mt-4 flex items-center gap-5"><div className="shrink-0 rounded-lg bg-forest p-3 text-forest-foreground"><QRCodeSVG value={`HOTELPILOT-DEMO:${s.room_number}:${s.device_id}`} size={112} bgColor="transparent" fgColor="currentColor"/></div><div className="min-w-0"><p className="text-sm text-muted-foreground">Din digitale værelsesnøgle</p><Button className="mt-3 bg-gradient-brass text-accent-foreground" disabled={busy} onClick={unlock}><KeyRound/>Lås dør op</Button><p className="mt-2 text-xs text-muted-foreground">Simuleret dørlås</p></div></div></section>
+ <section className="border-b pb-5"><div className="flex items-start gap-3"><Leaf className="mt-1 h-6 w-6 shrink-0 text-primary"/><div><h2 className="text-2xl">Hjælp med at mindske madspild</h2><p className="mt-1 text-sm">Spiser du på hotellet eller ude i aften?</p></div></div><div className="mt-4 grid grid-cols-2 gap-2" role="group" aria-label="Aftensmad">{(['hotel','out'] as const).map(c=><Button key={c} disabled={busy} variant={s.dinner_choice===c?'default':'outline'} aria-pressed={s.dinner_choice===c} onClick={()=>dinner(c)}>{s.dinner_choice===c&&<Check/>}{c==='hotel'?'På hotellet':'Ude i aften'}</Button>)}</div></section>
+ <div className="grid grid-cols-2 gap-3"><Tile title="Bestil håndklæder" Icon={Sparkles} onClick={()=>setSheet('towels')}/><Tile title="Room service" Icon={Utensils} onClick={()=>{setFood('');setFoodStep(0);setSheet('food');}}/></div>
+ <section className="border-b pb-5"><div className="flex items-center justify-between gap-3"><h2 className="text-2xl">Rengøring</h2><Button variant="outline" size="sm" onClick={()=>{setTowels(false);setSheet('clean');}}>Bestil rengøring</Button></div><p className="mt-2 text-sm text-muted-foreground">{HOUSEKEEPING_LABELS[s.housekeeping_status]}</p><progress aria-label="Rengøringsstatus" value={progress} max={100} className="hotel-progress mt-3 h-2 w-full"/><div className="mt-2 flex justify-between text-xs text-muted-foreground"><span>Modtaget</span><span>I gang</span><span>Gennemført</span></div></section>
+ {orders.length>0&&<section className="border-b pb-5"><h2 className="text-2xl">Dine bestillinger</h2><ul className="mt-3 divide-y">{orders.map(o=><li key={o.id} className="py-3"><div className="flex items-start justify-between gap-3"><p className="min-w-0 break-words text-sm">{o.details||'Håndklæder'}</p><StatusPill status={o.status}/></div>{cancellable(o.status)&&<Button size="sm" variant="ghost" className="mt-2 text-destructive" disabled={busy} onClick={()=>cancel(o.id)}><X/>Annuller bestilling</Button>}</li>)}</ul></section>}
+ <section className="rounded-lg bg-gradient-forest p-5 text-forest-foreground"><div className="flex items-center gap-2"><Wifi className="h-5 w-5 text-brass"/><h2 className="text-2xl">Wi-Fi</h2></div><div className="mt-3 grid grid-cols-2 gap-3 text-sm"><div><p className="text-xs opacity-60">Netværk</p><p className="break-all">{s.wifi_ssid}</p></div><div><p className="text-xs opacity-60">Adgangskode</p><p className="break-all font-mono">{s.wifi_password}</p></div></div><Button className="mt-4 w-full bg-gradient-brass text-accent-foreground" onClick={()=>setSheet('wifi')}><Wifi/>Kobl på hotellets netværk</Button></section>
+ <section className="border-b pb-5"><h2 className="text-2xl">I dag på hotellet</h2><ul className="mt-3 space-y-4">{events.map(e=><li key={e.id} className="flex gap-4"><span className="w-12 shrink-0 font-display text-xl text-brass">{e.starts_at.slice(0,5)}</span><div><p className="font-semibold">{e.title}</p><p className="text-sm text-muted-foreground">{e.location} · {e.description}</p></div></li>)}</ul></section>
+ <div className="grid grid-cols-2 gap-3"><Tile title="Hotelkort" Icon={Map} onClick={()=>setSheet('map')}/><Tile title="Del adgang" Icon={Share2} onClick={()=>setSheet('share')}/></div>
+ </main>
+ {sheet&&<HotelModal title={sheet==='towels'?'Bestil håndklæder':sheet==='clean'?'Bekræft rengøring':sheet==='food'?'Room service':sheet==='share'?'Del adgang':sheet==='wifi'?'Hotellets Wi-Fi':'Hotelkort'} onClose={()=>{if(!busy)setSheet(null);}}>
+ {sheet==='towels'&&<><p>Hvor mange håndklæder skal byttes?</p><div className="flex items-center justify-center gap-5"><Button variant="outline" size="icon" aria-label="Færre håndklæder" disabled={quantity<=1} onClick={()=>setQuantity(q=>q-1)}><Minus/></Button><input aria-label="Antal håndklæder" type="number" min={1} max={20} value={quantity} onChange={e=>setQuantity(Math.max(1,Math.min(20,Number(e.target.value)||1)))} className="w-16 rounded-md border bg-card p-2 text-center text-xl"/><Button variant="outline" size="icon" aria-label="Flere håndklæder" disabled={quantity>=20} onClick={()=>setQuantity(q=>q+1)}><Plus/></Button></div><Button disabled={busy} onClick={()=>sendOrder('towels',`${quantity} håndklæder til bytte`)}>Bekræft bestilling</Button></>}
+ {sheet==='clean'&&<><p>Rengøring af værelse {s.room_number}</p><label className="flex items-start gap-3 rounded-md border p-4"><input type="checkbox" checked={towels} onChange={e=>setTowels(e.target.checked)} className="mt-1 h-4 w-4 accent-primary"/><span>Kunne du tænke dig at få byttet håndklæder?</span></label><p className="text-sm text-muted-foreground">Håndklædeskift: {towels?'Ja':'Nej'}</p><Button disabled={busy} onClick={requestCleaning}>Bekræft rengøring</Button></>}
+ {sheet==='food'&&<><p className="text-xs text-muted-foreground">Trin {foodStep+1} af 3 · {foodStep===0?'Vælg':foodStep===1?'Gennemse':'Bekræft'}</p>{foodStep===0?<div className="space-y-2">{MENU.map(m=><Button key={m} variant={food===m?'default':'outline'} className="w-full justify-between" onClick={()=>setFood(m)}>{m}{food===m&&<Check/>}</Button>)}</div>:<div className="border-y py-4"><p className="text-xl">{food}</p><p className="mt-2 text-sm text-muted-foreground">Leveres til værelse {s.room_number}</p>{foodStep===2&&<p className="mt-3 text-sm">Skal vi sende bestillingen til køkkenet?</p>}</div>}<div className="flex gap-2">{foodStep>0&&<Button variant="outline" onClick={()=>setFoodStep(x=>x-1)}>Tilbage</Button>}<Button className="flex-1" disabled={!food||busy} onClick={()=>foodStep<2?setFoodStep(x=>x+1):sendOrder('room_service',food)}>{foodStep===2?'Bekræft bestilling':'Fortsæt'}</Button></div></>}
+ {sheet==='map'&&<HotelMap room={s.room_number}/>}
+ {sheet==='share'&&<><p className="text-sm">{s.devices} af {s.max_devices} enheder tilknyttet.</p><div className="flex justify-center rounded-lg bg-secondary p-5"><QRCodeSVG value={shareUrl} size={180} bgColor="transparent" fgColor="currentColor"/></div><Button onClick={async()=>{try{await navigator.clipboard.writeText(shareUrl);toast.success('Link kopieret');}catch{toast.error('Linket kunne ikke kopieres');}}}>Kopiér link</Button></>}
+ {sheet==='wifi'&&<><p className="eyebrow text-brass">HotelPilot · Netværkslogin</p><p className="text-sm text-muted-foreground">Simuleret Wi-Fi-login</p>{wifiConnected?<div className="flex items-center gap-3 py-6"><Check className="text-status-clean"/><p>Du er koblet på {s.wifi_ssid}</p></div>:<><p>Velkommen til {s.wifi_ssid}</p><Button disabled={busy} onClick={()=>{setWifiConnected(true);toast.success('Wi-Fi-forbindelse simuleret');}}>Tilslut netværk</Button></>}</>}
+ </HotelModal>}
+ </div>;
 }
-
-function Tile({ title, sub, onClick }: { title: string; sub: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="rounded-3xl bg-card p-5 text-left shadow-soft transition active:scale-[0.97]">
-      <span className="mb-6 block h-1 w-8 rounded-full bg-gradient-brass" />
-      <p className="font-display text-xl leading-tight">{title}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{sub}</p>
-    </button>
-  );
-}
-
-export function StatusPill({ status }: { status: OrderStatus }) {
-  const cls = status === "pending" ? "bg-status-dirty/15 text-status-dirty" : status === "in_progress" ? "bg-status-cleaning/25 text-foreground" : "bg-status-clean/15 text-status-clean";
-  return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${cls}`}>{ORDER_LABELS[status]}</span>;
-}
+function Tile({title,Icon,onClick}:{title:string;Icon:typeof KeyRound;onClick:()=>void}){return <Button variant="outline" className="h-24 flex-col items-start justify-between whitespace-normal bg-card p-4 text-left" onClick={onClick}><Icon className="text-brass"/><span className="font-display text-xl leading-tight">{title}</span></Button>;}
+export function StatusPill({status}:{status:OrderStatus}){return <span className={`shrink-0 rounded-full px-2 py-1 text-xs ${status==='done'?'bg-status-clean/15 text-status-clean':status==='cancelled'?'bg-muted text-muted-foreground':status==='in_progress'?'bg-status-cleaning/25 text-foreground':'bg-status-dirty/15 text-status-dirty'}`}>{ORDER_LABELS[status]}</span>;}
