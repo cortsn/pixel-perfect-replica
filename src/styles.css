@@ -129,3 +129,9 @@
   text-transform: uppercase;
   font-weight: 600;
 }
+
+.hotel-progress { appearance: none; border: 0; border-radius: 4px; background: var(--muted); overflow: hidden; }
+.hotel-progress::-webkit-progress-bar { background: var(--muted); }
+.hotel-progress::-webkit-progress-value { background: var(--primary); transition: width .3s; }
+.hotel-progress::-moz-progress-bar { background: var(--primary); }
+@media (prefers-reduced-motion: reduce) { .hotel-progress::-webkit-progress-value { transition: none; } }
