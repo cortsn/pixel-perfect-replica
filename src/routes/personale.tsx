@@ -21,7 +21,7 @@ export const Route = createFileRoute("/personale")({
   component: Staff,
 });
 
-type Order = { id: string; room_number: string; type: string; details: string; status: OrderStatus; created_at: string };
+type Order = { id: string; room_number: string; type: string; details: string; status: OrderStatus; cancelled?: boolean; created_at: string };
 type Room = { number: string; floor: number; housekeeping_status: HousekeepingStatus; exchange_towels: boolean };
 
 const ROOM_CYCLE: HousekeepingStatus[] = ["occupied", "needs_cleaning", "cleaning", "clean"];
@@ -78,7 +78,7 @@ function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
   const [rooms, setRooms] = useState<Room[]>([]);
 
   useEffect(() => {
-    const loadOrders = () => supabase.from("orders").select("*").order("created_at", { ascending: false }).limit(50).then(({ data }) => setOrders((data as Order[]) ?? []));
+    const loadOrders = () => supabase.from("orders").select("*").order("created_at", { ascending: false }).limit(50).then(({ data }) => setOrders(((data as Order[]) ?? []).map(o=>({...o,status:o.cancelled?"cancelled":o.status}))));
     const loadRooms = () => supabase.from("rooms").select("number,floor,housekeeping_status,exchange_towels").order("number").then(({ data }) => setRooms((data as Room[]) ?? []));
     loadOrders(); loadRooms();
     const ch = supabase.channel(`staff-${Math.random().toString(36).slice(2)}`)
