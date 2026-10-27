@@ -18,26 +18,38 @@ export type Database = {
         Row: {
           access_token: string
           active: boolean
+          dinner_choice: string | null
+          ends_at: string
+          guest_email: string | null
           guest_name: string
           id: string
           reference: string
           room_number: string
+          starts_at: string
         }
         Insert: {
           access_token?: string
           active?: boolean
+          dinner_choice?: string | null
+          ends_at?: string
+          guest_email?: string | null
           guest_name: string
           id?: string
           reference: string
           room_number: string
+          starts_at?: string
         }
         Update: {
           access_token?: string
           active?: boolean
+          dinner_choice?: string | null
+          ends_at?: string
+          guest_email?: string | null
           guest_name?: string
           id?: string
           reference?: string
           room_number?: string
+          starts_at?: string
         }
         Relationships: [
           {
@@ -114,8 +126,44 @@ export type Database = {
         }
         Relationships: []
       }
+      invitation_emails: {
+        Row: {
+          booking_id: string
+          created_at: string
+          id: string
+          recipient: string
+          status: string
+          subject: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          id?: string
+          recipient: string
+          status?: string
+          subject?: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          id?: string
+          recipient?: string
+          status?: string
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invitation_emails_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
+          booking_id: string | null
           created_at: string
           details: string
           id: string
@@ -124,6 +172,7 @@ export type Database = {
           type: string
         }
         Insert: {
+          booking_id?: string | null
           created_at?: string
           details?: string
           id?: string
@@ -132,6 +181,7 @@ export type Database = {
           type: string
         }
         Update: {
+          booking_id?: string | null
           created_at?: string
           details?: string
           id?: string
@@ -152,6 +202,8 @@ export type Database = {
       rooms: {
         Row: {
           capacity: number
+          cleaning_booking_id: string | null
+          exchange_towels: boolean
           floor: number
           housekeeping_status: string
           number: string
@@ -159,6 +211,8 @@ export type Database = {
         }
         Insert: {
           capacity?: number
+          cleaning_booking_id?: string | null
+          exchange_towels?: boolean
           floor: number
           housekeeping_status?: string
           number: string
@@ -166,6 +220,8 @@ export type Database = {
         }
         Update: {
           capacity?: number
+          cleaning_booking_id?: string | null
+          exchange_towels?: boolean
           floor?: number
           housekeeping_status?: string
           number?: string
@@ -178,6 +234,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      guest_cancel_order: {
+        Args: { _device: string; _order: string; _token: string }
+        Returns: undefined
+      }
+      guest_dinner: {
+        Args: { _choice: string; _device: string; _token: string }
+        Returns: undefined
+      }
       guest_info: {
         Args: {
           _b: Database["public"]["Tables"]["bookings"]["Row"]
@@ -199,6 +263,11 @@ export type Database = {
         }
         Returns: string
       }
+      guest_orders: { Args: { _device: string; _token: string }; Returns: Json }
+      guest_request_cleaning: {
+        Args: { _device: string; _token: string; _towels: boolean }
+        Returns: string
+      }
       guest_session: {
         Args: { _device: string; _token: string }
         Returns: Json
@@ -207,11 +276,48 @@ export type Database = {
         Args: { _device: string; _requested: boolean; _token: string }
         Returns: string
       }
+      guest_unlock: {
+        Args: { _device: string; _token: string }
+        Returns: string
+      }
       register_device: {
         Args: { _b: Database["public"]["Tables"]["bookings"]["Row"] }
         Returns: string
       }
+      require_guest: {
+        Args: { _device: string; _require_started?: boolean; _token: string }
+        Returns: {
+          access_token: string
+          active: boolean
+          dinner_choice: string | null
+          ends_at: string
+          guest_email: string | null
+          guest_name: string
+          id: string
+          reference: string
+          room_number: string
+          starts_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bookings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       staff_check: { Args: { _pin: string }; Returns: boolean }
+      staff_mock_booking: {
+        Args: {
+          _email: string
+          _end: string
+          _name: string
+          _pin: string
+          _room: string
+          _start: string
+        }
+        Returns: string
+      }
+      staff_pms: { Args: { _pin: string }; Returns: Json }
       staff_set_order_status: {
         Args: { _order: string; _pin: string; _status: string }
         Returns: undefined

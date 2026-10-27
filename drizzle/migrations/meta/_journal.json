@@ -8,6 +8,13 @@
       "when": 1793049272895,
       "tag": "0000_migration",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793110829319,
+      "tag": "0001_guest_stay_flows_and_pms_simulation",
+      "breakpoints": true
     }
   ]
 }
