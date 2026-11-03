@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Check, KeyRound, Leaf, Minus, Plus, ShoppingBasket, Sparkles, Star, Utensils, Wifi } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,14 +20,17 @@ export const Route = createFileRoute("/demo")({
 
 // Alt på denne side er faste eksempeldata i browseren. Der er ingen kald til databasen,
 // så intet kan oprettes, gemmes eller ændres, og alt nulstilles ved genindlæsning.
-const ago = (min: number) => new Date(Date.now() - min * 60000).toISOString();
-const SAMPLE_ORDERS: BoardOrder[] = [
+// Tidspunkterne beregnes først i browseren, så "forsinket" passer til, hvornår siden åbnes.
+const sampleOrders = (): BoardOrder[] => {
+  const ago = (min: number) => new Date(Date.now() - min * 60000).toISOString();
+  return [
   { id: "1", room_number: "101", type: "room_service", details: "Club sandwich", status: "pending", created_at: ago(14), updated_at: ago(14) },
   { id: "2", room_number: "204", type: "towels", details: "2 håndklæder til bytte", status: "pending", created_at: ago(3), updated_at: ago(3), quantity: 2 },
   { id: "3", room_number: "302", type: "room_service", details: "Flaske rødvin", status: "in_progress", created_at: ago(8), updated_at: ago(8) },
   { id: "4", room_number: "103", type: "room_service", details: "Kaffe & croissant", status: "ready", created_at: ago(20), updated_at: ago(2) },
   { id: "5", room_number: "201", type: "towels", details: "1 håndklæder til bytte", status: "done", created_at: ago(90), updated_at: ago(60), quantity: 1 },
-];
+  ];
+};
 const SAMPLE_BOOKINGS = [
   { guests: 2, dinner_choice: "hotel" }, { guests: 2, dinner_choice: "hotel" }, { guests: 3, dinner_choice: "out" },
   { guests: 1, dinner_choice: null }, { guests: 2, dinner_choice: "hotel" },
@@ -60,7 +63,8 @@ function Demo() {
 }
 
 function StaffDemo() {
-  const [orders, setOrders] = useState(SAMPLE_ORDERS);
+  const [orders, setOrders] = useState<BoardOrder[]>([]);
+  useEffect(() => { setOrders(sampleOrders()); }, []);
   const d = dinnerStats(SAMPLE_BOOKINGS);
   const buy = purchaseSuggestions([
     { type: "room_service", details: "Club sandwich" }, { type: "room_service", details: "Club sandwich" },
