@@ -37,6 +37,7 @@ const DOT: Record<HousekeepingStatus, string> = {
 const ORDER_CLS: Record<OrderStatus, string> = {
   pending: "bg-status-dirty/15 text-status-dirty",
   in_progress: "bg-status-cleaning/25 text-foreground",
+  ready: "bg-status-occupied/15 text-status-occupied",
   done: "bg-status-clean/15 text-status-clean",
   cancelled: "bg-muted text-muted-foreground",
 };
