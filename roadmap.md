@@ -1,8 +1,9 @@
 # HotelPilot updates
-- [x] Confirmation flows for towels, housekeeping and room service; cancellation.
-- [x] Dinner preference and live housekeeping progress with staff reset.
-- [x] Visual simulated hotel map, digital key and Wi-Fi portal.
-- [x] Staff PMS and invitation email simulation.
-- [x] Enforced stay windows, countdown and checkout lockout.
-- [x] Verify guest/staff flows and rule tests.
-- [ ] Replace illustrative hotel layout with verified physical plan — blocked: hotel's actual floor plan has not been supplied.
+- [x] Confirmation flows, dinner, housekeeping, map, key, Wi-Fi, PMS, stay windows.
+- [ ] Staff dinner counter (eaters/total, bar, expected food).
+- [ ] Towel limit = guests × 4 swaps per stay, remaining shown.
+- [ ] Kanban live orders (Ny/I gang/Klar/Leveret), filters, search, delay flag.
+- [ ] Remove demo bookings/invitations; real invitation emails — blocked: needs email domain.
+- [ ] Extras: staff notifications, ops overview, purchase suggestions, guest feedback, Danish/English guest view.
+- [ ] Full app review + end-to-end test.
+- [ ] Replace illustrative hotel layout with verified physical plan — blocked: floor plan not supplied.
