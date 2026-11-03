@@ -16,10 +16,14 @@ export type GuestSession = {
   housekeeping_status: HousekeepingStatus;
   wifi_ssid: string;
   wifi_password: string;
+  guests: number;
+  towel_limit: number;
+  towels_used: number;
+  feedback_given: boolean;
 };
 
 export type HousekeepingStatus = "occupied" | "needs_cleaning" | "cleaning" | "clean";
-export type OrderStatus = "pending" | "in_progress" | "done" | "cancelled";
+export type OrderStatus = "pending" | "in_progress" | "ready" | "done" | "cancelled";
 
 export const HOUSEKEEPING_LABELS: Record<HousekeepingStatus, string> = {
   occupied: "Gæst på værelset",
@@ -29,14 +33,15 @@ export const HOUSEKEEPING_LABELS: Record<HousekeepingStatus, string> = {
 };
 
 export const ORDER_LABELS: Record<OrderStatus, string> = {
-  pending: "Afventer",
+  pending: "Ny",
   in_progress: "I gang",
-  done: "Gennemført",
+  ready: "Klar",
+  done: "Leveret",
   cancelled: "Annulleret",
 };
 
 export const nextOrderStatus = (s: OrderStatus): OrderStatus =>
-  s === "pending" ? "in_progress" : s === "in_progress" ? "done" : s;
+  s === "pending" ? "in_progress" : s === "in_progress" ? "ready" : s === "ready" ? "done" : s;
 
 const KEY = "hotelpilot-guest";
 
@@ -62,6 +67,9 @@ export function errorText(e: { message?: string } | null) {
   if (m.includes("ORDER_NOT_CANCELLABLE")) return "Bestillingen er allerede afsluttet eller annulleret.";
   if (m.includes("DEVICE_LIMIT")) return "Maks. antal enheder for værelset er nået.";
   if (m.includes("INVALID_LOGIN")) return "Bookingnummer eller værelsesnummer er forkert.";
+  if (m.includes("TOWEL_LIMIT")) return "Du har bestilt det maksimale antal håndklæder for dit ophold.";
+  if (m.includes("INVALID_GUESTS")) return "Antal gæster passer ikke til værelset.";
+  if (m.includes("INVALID_BOOKING")) return "Udfyld navn og en gyldig e-mail.";
   if (m.includes("FORBIDDEN")) return "Forkert personalekode.";
   return "Noget gik galt. Prøv igen.";
 }
