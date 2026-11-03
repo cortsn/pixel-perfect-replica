@@ -22,6 +22,7 @@ export type Database = {
           ends_at: string
           guest_email: string | null
           guest_name: string
+          guests: number
           id: string
           reference: string
           room_number: string
@@ -34,6 +35,7 @@ export type Database = {
           ends_at?: string
           guest_email?: string | null
           guest_name: string
+          guests?: number
           id?: string
           reference: string
           room_number: string
@@ -46,6 +48,7 @@ export type Database = {
           ends_at?: string
           guest_email?: string | null
           guest_name?: string
+          guests?: number
           id?: string
           reference?: string
           room_number?: string
@@ -111,6 +114,41 @@ export type Database = {
         }
         Relationships: []
       }
+      guest_feedback: {
+        Row: {
+          booking_id: string
+          comment: string
+          created_at: string
+          id: string
+          rating: number
+          room_number: string
+        }
+        Insert: {
+          booking_id: string
+          comment?: string
+          created_at?: string
+          id?: string
+          rating: number
+          room_number: string
+        }
+        Update: {
+          booking_id?: string
+          comment?: string
+          created_at?: string
+          id?: string
+          rating?: number
+          room_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_feedback_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hotel_secrets: {
         Row: {
           key: string
@@ -168,9 +206,11 @@ export type Database = {
           created_at: string
           details: string
           id: string
+          quantity: number
           room_number: string
           status: string
           type: string
+          updated_at: string
         }
         Insert: {
           booking_id?: string | null
@@ -178,9 +218,11 @@ export type Database = {
           created_at?: string
           details?: string
           id?: string
+          quantity?: number
           room_number: string
           status?: string
           type: string
+          updated_at?: string
         }
         Update: {
           booking_id?: string | null
@@ -188,9 +230,11 @@ export type Database = {
           created_at?: string
           details?: string
           id?: string
+          quantity?: number
           room_number?: string
           status?: string
           type?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -245,6 +289,15 @@ export type Database = {
         Args: { _choice: string; _device: string; _token: string }
         Returns: undefined
       }
+      guest_feedback: {
+        Args: {
+          _comment: string
+          _device: string
+          _rating: number
+          _token: string
+        }
+        Returns: undefined
+      }
       guest_info: {
         Args: {
           _b: Database["public"]["Tables"]["bookings"]["Row"]
@@ -264,6 +317,10 @@ export type Database = {
           _token: string
           _type: string
         }
+        Returns: string
+      }
+      guest_order_towels: {
+        Args: { _device: string; _qty: number; _token: string }
         Returns: string
       }
       guest_orders: { Args: { _device: string; _token: string }; Returns: Json }
@@ -296,6 +353,7 @@ export type Database = {
           ends_at: string
           guest_email: string | null
           guest_name: string
+          guests: number
           id: string
           reference: string
           room_number: string
@@ -313,6 +371,7 @@ export type Database = {
         Args: {
           _email: string
           _end: string
+          _guests?: number
           _name: string
           _pin: string
           _room: string
@@ -329,6 +388,7 @@ export type Database = {
         Args: { _pin: string; _room: string; _status: string }
         Returns: undefined
       }
+      towels_used: { Args: { _b: string }; Returns: number }
     }
     Enums: {
       [_ in never]: never
