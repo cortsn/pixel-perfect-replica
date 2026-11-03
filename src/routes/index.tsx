@@ -59,7 +59,7 @@ function Login() {
               {busy ? "Logger ind…" : "Åbn mit værelse"}
             </button>
           </form>
-          <p className="mt-5 text-center text-xs text-forest-foreground/60">Demo: HP-1001 / 101 · HP-3004 / 304</p>
+          <p className="mt-5 text-center text-sm"><Link to="/demo" className="text-brass underline">Prøv demo (ingen data gemmes)</Link></p>
         </div>
       </div>
     </div>

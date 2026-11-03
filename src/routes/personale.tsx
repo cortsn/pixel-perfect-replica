@@ -2,6 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { PmsPanel } from "@/components/hotel/pms-panel";
+import { OrdersBoard } from "@/components/hotel/orders-board";
+import { OpsPanel } from "@/components/hotel/ops-panel";
 import { RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,7 +23,7 @@ export const Route = createFileRoute("/personale")({
   component: Staff,
 });
 
-type Order = { id: string; room_number: string; type: string; details: string; status: OrderStatus; cancelled?: boolean; created_at: string };
+type Order = { id: string; room_number: string; type: string; details: string; status: OrderStatus; cancelled?: boolean; created_at: string; updated_at?: string; quantity?: number };
 type Room = { number: string; floor: number; housekeeping_status: HousekeepingStatus; exchange_towels: boolean };
 
 const ROOM_CYCLE: HousekeepingStatus[] = ["occupied", "needs_cleaning", "cleaning", "clean"];
@@ -33,13 +35,6 @@ const ROOM_CLS: Record<HousekeepingStatus, string> = {
 };
 const DOT: Record<HousekeepingStatus, string> = {
   occupied: "bg-status-occupied", needs_cleaning: "bg-status-dirty", cleaning: "bg-status-cleaning", clean: "bg-status-clean",
-};
-const ORDER_CLS: Record<OrderStatus, string> = {
-  pending: "bg-status-dirty/15 text-status-dirty",
-  in_progress: "bg-status-cleaning/25 text-foreground",
-  ready: "bg-status-occupied/15 text-status-occupied",
-  done: "bg-status-clean/15 text-status-clean",
-  cancelled: "bg-muted text-muted-foreground",
 };
 
 function Staff() {
@@ -65,8 +60,8 @@ function Staff() {
           <input type="password" inputMode="numeric" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Personalekode"
             className="mt-8 w-full rounded-2xl border border-forest-foreground/20 bg-forest/60 px-4 py-4 text-center text-2xl tracking-[0.5em] outline-none" />
           <Button className="mt-4 h-auto w-full rounded-full bg-gradient-brass py-4 font-semibold text-accent-foreground">Log ind</Button>
-          <p className="mt-4 text-xs opacity-60">Demo-kode: 1234</p>
-          <Link to="/" className="mt-6 inline-block text-sm opacity-70">← Til gæsteportalen</Link>
+          <Link to="/demo" className="mt-6 inline-block text-sm text-brass underline">Prøv demo (ingen data gemmes)</Link><br />
+          <Link to="/" className="mt-3 inline-block text-sm opacity-70">← Til gæsteportalen</Link>
         </form>
       </div>
     );
@@ -98,21 +93,20 @@ function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
     const next = nextOrderStatus(o.status);
     const { error } = await supabase.rpc("staff_set_order_status", { _pin: pin, _order: o.id, _status: next });
     if (error) toast.error(errorText(error));
-    else setOrders((os) => os.map((x) => (x.id === o.id ? { ...x, status: next } : x)));
+    else { setOrders((os) => os.map((x) => (x.id === o.id ? { ...x, status: next, updated_at: new Date().toISOString() } : x))); toast.success(`Værelse ${o.room_number}: ${ORDER_LABELS[next]}`); }
   }
   async function cycleRoom(r: Room) {
     const next: HousekeepingStatus = ROOM_CYCLE[(ROOM_CYCLE.indexOf(r.housekeeping_status) + 1) % ROOM_CYCLE.length] ?? "occupied";
     const { error } = await supabase.rpc("staff_set_room_status", { _pin: pin, _room: r.number, _status: next });
     if (error) toast.error(errorText(error));
-    else setRooms(rs=>rs.map(x=>x.number===r.number?{...x,housekeeping_status:next}:x));
+    else { setRooms(rs=>rs.map(x=>x.number===r.number?{...x,housekeeping_status:next}:x)); toast.success(`Værelse ${r.number}: ${HOUSEKEEPING_LABELS[next]}`); }
   }
   async function resetRoom(r: Room) {
     const {error}=await supabase.rpc("staff_set_room_status",{_pin:pin,_room:r.number,_status:"occupied"});
     if(error) toast.error(errorText(error));
-    else setRooms(rs=>rs.map(x=>x.number===r.number?{...x,housekeeping_status:"occupied",exchange_towels:false}:x));
+    else { setRooms(rs=>rs.map(x=>x.number===r.number?{...x,housekeeping_status:"occupied",exchange_towels:false}:x)); toast.success(`Værelse ${r.number} nulstillet`); }
   }
 
-  const open = orders.filter((o) => o.status !== "done" && o.status !== "cancelled").length;
   const floors = [...new Set(rooms.map((r) => r.floor))].sort((a, b) => b - a);
 
   return (
@@ -128,27 +122,9 @@ function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
         </div>
       </header>
 
-      <main className="grid gap-6 p-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:p-8">
-        <section className="min-w-0">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-3xl">Live ordrer</h2>
-            <span className="text-sm text-muted-foreground">{open} åbne</span>
-          </div>
-          <ul className="mt-4 space-y-2">
-            {orders.map((o) => (
-              <li key={o.id} className="flex items-center gap-4 rounded-2xl border px-4 py-3">
-                <span className="w-14 font-display text-2xl">{o.room_number}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold">{o.type === "towels" ? "Håndklæder" : "Room service"}</p>
-                  <p className="break-words text-sm text-muted-foreground">{o.details} · {new Date(o.created_at).toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" })}</p>
-                </div>
-                <Button disabled={o.status === "done" || o.status === "cancelled"} variant="ghost" onClick={() => cycleOrder(o)} className={`rounded-full px-3 py-1 text-xs font-semibold ${ORDER_CLS[o.status]}`}>{ORDER_LABELS[o.status]}</Button>
-              </li>
-            ))}
-            {orders.length === 0 && <li className="py-8 text-center text-muted-foreground">Ingen bestillinger endnu</li>}
-          </ul>
-        </section>
-
+      <OpsPanel pin={pin} orders={orders} />
+      <main className="space-y-8 p-6 lg:p-8">
+        <OrdersBoard orders={orders} onAdvance={cycleOrder} />
         <section className="min-w-0">
           <h2 className="text-3xl">Værelsesstatus</h2>
           <div className="mt-3 flex flex-wrap gap-4 text-xs">
