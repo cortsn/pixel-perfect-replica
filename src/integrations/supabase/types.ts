@@ -19,6 +19,8 @@ export type Database = {
           access_token: string
           active: boolean
           dinner_choice: string | null
+          early_checkin_status: string | null
+          early_checkin_time: string | null
           ends_at: string
           guest_email: string | null
           guest_name: string
@@ -32,6 +34,8 @@ export type Database = {
           access_token?: string
           active?: boolean
           dinner_choice?: string | null
+          early_checkin_status?: string | null
+          early_checkin_time?: string | null
           ends_at?: string
           guest_email?: string | null
           guest_name: string
@@ -45,6 +49,8 @@ export type Database = {
           access_token?: string
           active?: boolean
           dinner_choice?: string | null
+          early_checkin_status?: string | null
+          early_checkin_time?: string | null
           ends_at?: string
           guest_email?: string | null
           guest_name?: string
@@ -61,6 +67,53 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "rooms"
             referencedColumns: ["number"]
+          },
+        ]
+      }
+      cleaning_requests: {
+        Row: {
+          away_from: string | null
+          away_until: string | null
+          booking_id: string
+          created_at: string
+          id: string
+          is_repeat: boolean
+          room_number: string
+          status: string
+          updated_at: string
+          wants_towels: boolean
+        }
+        Insert: {
+          away_from?: string | null
+          away_until?: string | null
+          booking_id: string
+          created_at?: string
+          id?: string
+          is_repeat?: boolean
+          room_number: string
+          status?: string
+          updated_at?: string
+          wants_towels?: boolean
+        }
+        Update: {
+          away_from?: string | null
+          away_until?: string | null
+          booking_id?: string
+          created_at?: string
+          id?: string
+          is_repeat?: boolean
+          room_number?: string
+          status?: string
+          updated_at?: string
+          wants_towels?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cleaning_requests_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -289,6 +342,7 @@ export type Database = {
         Args: { _choice: string; _device: string; _token: string }
         Returns: undefined
       }
+      guest_extras: { Args: { _device: string; _token: string }; Returns: Json }
       guest_feedback: {
         Args: {
           _comment: string
@@ -328,6 +382,20 @@ export type Database = {
         Args: { _device: string; _token: string; _towels: boolean }
         Returns: string
       }
+      guest_request_cleaning_window: {
+        Args: {
+          _device: string
+          _from: string
+          _token: string
+          _towels: boolean
+          _until: string
+        }
+        Returns: string
+      }
+      guest_request_early_checkin: {
+        Args: { _device: string; _time: string; _token: string }
+        Returns: undefined
+      }
       guest_session: {
         Args: { _device: string; _token: string }
         Returns: Json
@@ -350,6 +418,8 @@ export type Database = {
           access_token: string
           active: boolean
           dinner_choice: string | null
+          early_checkin_status: string | null
+          early_checkin_time: string | null
           ends_at: string
           guest_email: string | null
           guest_name: string
@@ -367,6 +437,7 @@ export type Database = {
         }
       }
       staff_check: { Args: { _pin: string }; Returns: boolean }
+      staff_cleaning: { Args: { _pin: string }; Returns: Json }
       staff_mock_booking: {
         Args: {
           _email: string
@@ -380,6 +451,14 @@ export type Database = {
         Returns: string
       }
       staff_pms: { Args: { _pin: string }; Returns: Json }
+      staff_set_cleaning: {
+        Args: { _pin: string; _request: string; _status: string }
+        Returns: undefined
+      }
+      staff_set_early_checkin: {
+        Args: { _booking: string; _pin: string; _status: string }
+        Returns: undefined
+      }
       staff_set_order_status: {
         Args: { _order: string; _pin: string; _status: string }
         Returns: undefined
