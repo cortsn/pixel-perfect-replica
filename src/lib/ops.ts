@@ -14,6 +14,15 @@ export function isDelayed(status: string, since: string, now: number) {
 }
 export function purchaseSuggestions(orders: { type: string; details: string; quantity?: number; cancelled?: boolean }[], days = 7) {
   const counts = new Map<string, number>();
-  for (const o of orders) { if (o.cancelled) continue; const k = o.type === 'towels' ? 'Håndklæder (vask)' : o.details; counts.set(k, (counts.get(k) ?? 0) + (o.type === 'towels' ? (o.quantity ?? 1) : 1)); }
+  const add = (k: string, n: number) => counts.set(k, (counts.get(k) ?? 0) + n);
+  for (const o of orders) {
+    if (o.cancelled) continue;
+    if (o.type === 'towels') { add('Håndklæder (vask)', o.quantity ?? 1); continue; }
+    // Kurve gemmes som "2× Club sandwich, 1× Kaffe — Note: …": tæl hver vare for sig.
+    for (const part of o.details.split(' — Note:')[0]!.split(', ')) {
+      const m = /^(\d+)× (.+)$/.exec(part.trim());
+      add(m ? m[2]! : part.trim(), m ? Number(m[1]) : 1);
+    }
+  }
   return [...counts.entries()].map(([item, used]) => ({ item, used, perDay: Math.round((used / days) * 10) / 10, suggest: Math.ceil(used * 1.2) })).sort((a, b) => b.used - a.used);
 }
