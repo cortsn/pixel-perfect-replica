@@ -72,6 +72,9 @@ function Staff() {
 function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [roomQ, setRoomQ] = useState("");
+  const [roomStatus, setRoomStatus] = useState<HousekeepingStatus | "all">("all");
+  const [roomFloor, setRoomFloor] = useState<number | "all">("all");
 
   useEffect(() => {
     const loadOrders = () => supabase.from("orders").select("*").order("created_at", { ascending: false }).limit(50).then(({ data }) => setOrders(((data as Order[]) ?? []).map(o=>({...o,status:o.cancelled?"cancelled":o.status}))));
@@ -108,6 +111,8 @@ function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
   }
 
   const floors = [...new Set(rooms.map((r) => r.floor))].sort((a, b) => b - a);
+  const shown = rooms.filter((r) => (roomStatus === "all" || r.housekeeping_status === roomStatus) && (roomFloor === "all" || r.floor === roomFloor) && (!roomQ.trim() || r.number.includes(roomQ.trim())));
+  const shownFloors = floors.filter((f) => shown.some((r) => r.floor === f));
 
   return (
     <div className="min-h-screen">
@@ -127,17 +132,28 @@ function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
         <OrdersBoard orders={orders} onAdvance={cycleOrder} />
         <section className="min-w-0">
           <h2 className="text-3xl">Værelsesstatus</h2>
-          <div className="mt-3 flex flex-wrap gap-4 text-xs">
-            {ROOM_CYCLE.map((s) => (
-              <span key={s} className="flex items-center gap-2"><span className={`h-2.5 w-2.5 rounded-full ${DOT[s]}`} />{HOUSEKEEPING_LABELS[s]} ({rooms.filter((r) => r.housekeeping_status === s).length})</span>
+          <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <input value={roomQ} onChange={(e) => setRoomQ(e.target.value)} inputMode="numeric" aria-label="Søg værelse" placeholder="Søg værelsesnummer" className="w-full rounded-md border bg-card px-3 py-2 text-sm" />
+            <select aria-label="Filtrer etage" value={roomFloor} onChange={(e) => setRoomFloor(e.target.value === "all" ? "all" : Number(e.target.value))} className="rounded-md border bg-card p-2 text-sm">
+              <option value="all">Alle etager</option>
+              {floors.map((f) => <option key={f} value={f}>{f}. sal</option>)}
+            </select>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs" role="group" aria-label="Filtrer status">
+            <Button size="sm" variant={roomStatus === "all" ? "default" : "outline"} aria-pressed={roomStatus === "all"} className="rounded-full" onClick={() => setRoomStatus("all")}>Alle ({rooms.length})</Button>
+            {ROOM_CYCLE.map((st) => (
+              <Button key={st} size="sm" variant={roomStatus === st ? "default" : "outline"} aria-pressed={roomStatus === st} className="rounded-full" onClick={() => setRoomStatus(roomStatus === st ? "all" : st)}>
+                <span className={`h-2.5 w-2.5 rounded-full ${DOT[st]}`} />{HOUSEKEEPING_LABELS[st]} ({rooms.filter((r) => r.housekeeping_status === st).length})
+              </Button>
             ))}
           </div>
           <div className="mt-5 space-y-4">
-            {floors.map((f) => (
+            {shown.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Ingen værelser matcher dit filter</p>}
+            {shownFloors.map((f) => (
               <div key={f}>
                 <p className="eyebrow mb-2 text-muted-foreground">{f}. sal</p>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  {rooms.filter((r) => r.floor === f).map((r) => (
+                  {shown.filter((r) => r.floor === f).map((r) => (
                     <div key={r.number} className={`rounded-lg border-2 p-3 ${ROOM_CLS[r.housekeeping_status]}`}>
                       <p className="font-display text-3xl">{r.number}</p>
                       <p className="mt-1 min-h-8 text-xs font-semibold">{HOUSEKEEPING_LABELS[r.housekeeping_status]}</p>

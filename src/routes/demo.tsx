@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { OrdersBoard, type BoardOrder } from "@/components/hotel/orders-board";
 import { HOUSEKEEPING_LABELS, nextOrderStatus, ORDER_LABELS, type HousekeepingStatus } from "@/lib/hotel";
 import { dinnerStats, purchaseSuggestions, towelsLeft } from "@/lib/ops";
+import { RoomService } from "@/components/hotel/room-service";
 
 export const Route = createFileRoute("/demo")({
   head: () => ({
@@ -43,7 +44,6 @@ const ROOM_CLS: Record<HousekeepingStatus, string> = {
   occupied: "border-status-occupied bg-status-occupied/10", needs_cleaning: "border-status-dirty bg-status-dirty/15",
   cleaning: "border-status-cleaning bg-status-cleaning/20", clean: "border-status-clean bg-status-clean/10",
 };
-const MENU = ["Club sandwich", "Caesar salat", "Dagens suppe", "Kaffe & croissant"];
 
 function Demo() {
   const [view, setView] = useState<"guest" | "staff">("staff");
@@ -129,12 +129,12 @@ function GuestDemo() {
       </header>
       <section className="border-b pb-5">
         <div className="flex items-center justify-between"><h2 className="text-3xl">Digital nøgle</h2><span className="flex items-center gap-1 text-xs text-status-clean"><Check className="h-4 w-4" />Aktiv</span></div>
-        <Button className="mt-3 bg-gradient-brass text-accent-foreground" onClick={() => toast("Demo: dør ikke tilsluttet")}><KeyRound />Lås dør op</Button>
+        <Button className="mt-5 h-16 w-full rounded-full bg-gradient-brass text-lg font-semibold text-accent-foreground shadow-soft" onClick={() => toast("Demo: dør ikke tilsluttet")}><KeyRound className="!h-6 !w-6" />Lås dør op</Button>
       </section>
       <section className="border-b pb-5">
         <h2 className="flex items-center gap-2 text-2xl"><Leaf className="h-5 w-5 text-primary" />Spiser du på hotellet i aften?</h2>
         <div className="mt-3 grid grid-cols-2 gap-2">
-          {(["hotel", "out"] as const).map(c => <Button key={c} variant={dinner === c ? "default" : "outline"} onClick={() => setDinner(c)}>{c === "hotel" ? "På hotellet" : "Ude i aften"}</Button>)}
+          {(["hotel", "out"] as const).map(c => <Button key={c} variant={dinner === c ? "default" : "outline"} onClick={() => setDinner(d => (d === c ? null : c))}>{c === "hotel" ? "På hotellet" : "Ude i aften"}</Button>)}
         </div>
       </section>
       <section className="border-b pb-5">
@@ -151,7 +151,7 @@ function GuestDemo() {
       </section>
       <section className="border-b pb-5">
         <h2 className="flex items-center gap-2 text-2xl"><Utensils className="h-5 w-5 text-brass" />Room service</h2>
-        <div className="mt-3 space-y-2">{MENU.map(m => <Button key={m} variant="outline" className="w-full justify-between" onClick={() => toast(`Demo: ${m} — ikke sendt til køkkenet`)}>{m}</Button>)}</div>
+        <div className="mt-3 space-y-3"><RoomService room="101" onSubmit={(d) => toast(`Demo: ${d} — ikke sendt til køkkenet`)} /></div>
       </section>
       <section className="rounded-lg bg-gradient-forest p-5 text-forest-foreground">
         <div className="flex items-center gap-2"><Wifi className="h-5 w-5 text-brass" /><h2 className="text-2xl">Wi-Fi</h2></div>
