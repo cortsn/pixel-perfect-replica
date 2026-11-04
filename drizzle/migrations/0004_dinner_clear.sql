@@ -1,2 +1,1 @@
--- Gæsten kan fjerne sit valg af aftensmad igen ('none' nulstiller til "ikke besvaret").
-CREATE OR REPLACE FUNCTION public.guest_dinner(_token uuid,_device uuid,_choice text) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$ DECLARE b bookings; BEGIN b:=require_guest(_token,_device); IF _choice NOT IN ('hotel','out','none') THEN RAISE EXCEPTION 'INVALID_CHOICE'; END IF; UPDATE bookings SET dinner_choice=CASE WHEN _choice='none' THEN NULL ELSE _choice END WHERE id=b.id; END $$;
+-- Custom SQL migration file, put your code below! --
