@@ -71,6 +71,12 @@ export function errorText(e: { message?: string } | null) {
   if (m.includes("INVALID_GUESTS")) return "Antal gæster passer ikke til værelset.";
   if (m.includes("INVALID_BOOKING")) return "Udfyld navn og en gyldig e-mail.";
   if (m.includes("FORBIDDEN")) return "Forkert personalekode.";
+  if (m.includes("INVALID_WINDOW")) return "Tidsrummet er ugyldigt. Slut skal være efter start.";
+  if (m.includes("CLEANING_ALREADY_REQUESTED")) return "Du har allerede bestilt rengøring.";
+  if (m.includes("INVALID_TIME")) return "Vælg et tidspunkt før dit normale check-in.";
+  if (m.includes("EARLY_ALREADY_APPROVED")) return "Din tidlige check-in er allerede godkendt.";
+  if (m.includes("EARLY_NOT_APPLICABLE")) return "Dit ophold er allerede startet.";
+  if (m.includes("REQUEST_CLOSED")) return "Anmodningen er allerede lukket.";
   return "Noget gik galt. Prøv igen.";
 }
 

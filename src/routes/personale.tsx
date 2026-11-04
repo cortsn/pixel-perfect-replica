@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { PmsPanel } from "@/components/hotel/pms-panel";
 import { OrdersBoard } from "@/components/hotel/orders-board";
 import { OpsPanel } from "@/components/hotel/ops-panel";
-import { RotateCcw } from "lucide-react";
+import { StaffRequests } from "@/components/hotel/staff-requests";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { errorText, HOUSEKEEPING_LABELS, nextOrderStatus, ORDER_LABELS, type HousekeepingStatus, type OrderStatus } from "@/lib/hotel";
@@ -27,6 +27,7 @@ type Order = { id: string; room_number: string; type: string; details: string; s
 type Room = { number: string; floor: number; housekeeping_status: HousekeepingStatus; exchange_towels: boolean };
 
 const ROOM_CYCLE: HousekeepingStatus[] = ["occupied", "needs_cleaning", "cleaning", "clean"];
+const ROOM_SHORT: Record<HousekeepingStatus, string> = { occupied: "Gæst", needs_cleaning: "Skal rengøres", cleaning: "I gang", clean: "Rengjort" };
 const ROOM_CLS: Record<HousekeepingStatus, string> = {
   occupied: "border-status-occupied bg-status-occupied/10",
   needs_cleaning: "border-status-dirty bg-status-dirty/15",
@@ -98,16 +99,14 @@ function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
     if (error) toast.error(errorText(error));
     else { setOrders((os) => os.map((x) => (x.id === o.id ? { ...x, status: next, updated_at: new Date().toISOString() } : x))); toast.success(`Værelse ${o.room_number}: ${ORDER_LABELS[next]}`); }
   }
-  async function cycleRoom(r: Room) {
-    const next: HousekeepingStatus = ROOM_CYCLE[(ROOM_CYCLE.indexOf(r.housekeeping_status) + 1) % ROOM_CYCLE.length] ?? "occupied";
+  async function changeRoom(r: Room, next: HousekeepingStatus) {
+    if (r.housekeeping_status === next) return;
     const { error } = await supabase.rpc("staff_set_room_status", { _pin: pin, _room: r.number, _status: next });
     if (error) toast.error(errorText(error));
-    else { setRooms(rs=>rs.map(x=>x.number===r.number?{...x,housekeeping_status:next}:x)); toast.success(`Værelse ${r.number}: ${HOUSEKEEPING_LABELS[next]}`); }
-  }
-  async function resetRoom(r: Room) {
-    const {error}=await supabase.rpc("staff_set_room_status",{_pin:pin,_room:r.number,_status:"occupied"});
-    if(error) toast.error(errorText(error));
-    else { setRooms(rs=>rs.map(x=>x.number===r.number?{...x,housekeeping_status:"occupied",exchange_towels:false}:x)); toast.success(`Værelse ${r.number} nulstillet`); }
+    else {
+      setRooms((rs) => rs.map((x) => (x.number === r.number ? { ...x, housekeeping_status: next, exchange_towels: next === "occupied" ? false : x.exchange_towels } : x)));
+      toast.success(`Værelse ${r.number}: ${HOUSEKEEPING_LABELS[next]}`);
+    }
   }
 
   const floors = [...new Set(rooms.map((r) => r.floor))].sort((a, b) => b - a);
@@ -129,6 +128,7 @@ function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
 
       <OpsPanel pin={pin} orders={orders} />
       <main className="space-y-8 p-6 lg:p-8">
+        <StaffRequests pin={pin} />
         <OrdersBoard orders={orders} onAdvance={cycleOrder} />
         <section className="min-w-0">
           <h2 className="text-3xl">Værelsesstatus</h2>
@@ -158,9 +158,10 @@ function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
                       <p className="font-display text-3xl">{r.number}</p>
                       <p className="mt-1 min-h-8 text-xs font-semibold">{HOUSEKEEPING_LABELS[r.housekeeping_status]}</p>
                       {r.exchange_towels && <p className="mt-1 text-xs">Håndklædeskift: Ja</p>}
-                      <div className="mt-3 flex flex-wrap gap-1">
-                        <Button size="sm" variant="outline" onClick={() => cycleRoom(r)}>{r.housekeeping_status === "needs_cleaning" ? "I gang" : r.housekeeping_status === "cleaning" ? "Gennemført" : "Skift status"}</Button>
-                        <Button size="icon" variant="ghost" aria-label={`Nulstille værelse ${r.number}`} title="Nulstille" onClick={() => resetRoom(r)}><RotateCcw /></Button>
+                      <div className="mt-3 grid grid-cols-2 gap-1" role="group" aria-label={`Status for værelse ${r.number}`}>
+                        {ROOM_CYCLE.map((st) => (
+                          <Button key={st} size="sm" variant={r.housekeeping_status === st ? "default" : "outline"} aria-pressed={r.housekeeping_status === st} className="h-8 whitespace-normal px-1 text-[11px] leading-tight" onClick={() => changeRoom(r, st)}>{ROOM_SHORT[st]}</Button>
+                        ))}
                       </div>
                     </div>
                   ))}
