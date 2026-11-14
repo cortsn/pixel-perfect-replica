@@ -20,6 +20,9 @@ export type GuestSession = {
   towel_limit: number;
   towels_used: number;
   feedback_given: boolean;
+  checked_in_at: string | null;
+  notice_kind: "start" | "end" | "both" | null;
+  notice_at: string | null;
 };
 
 export type HousekeepingStatus = "occupied" | "needs_cleaning" | "cleaning" | "clean";
@@ -66,7 +69,10 @@ export function errorText(e: { message?: string } | null) {
   if (m.includes("ROOM_BUSY")) return "Værelset er allerede booket i det valgte tidsrum.";
   if (m.includes("ORDER_NOT_CANCELLABLE")) return "Bestillingen er allerede afsluttet eller annulleret.";
   if (m.includes("DEVICE_LIMIT")) return "Maks. antal enheder for værelset er nået.";
-  if (m.includes("INVALID_LOGIN")) return "Bookingnummer eller værelsesnummer er forkert.";
+  if (m.includes("INVALID_LOGIN")) return "Bookingnummer eller navn er forkert. Skriv dit fulde navn, som det står på bookingen.";
+  if (m.includes("NOT_CHECKED_IN")) return "Tjek ind først, så virker nøglen.";
+  if (m.includes("BOOKING_NOT_FOUND")) return "Opholdet findes ikke længere.";
+  if (m.includes("INVALID_STAY")) return "Sluttidspunktet skal være efter starttidspunktet.";
   if (m.includes("TOWEL_LIMIT")) return "Du har bestilt det maksimale antal håndklæder for dit ophold.";
   if (m.includes("INVALID_GUESTS")) return "Antal gæster passer ikke til værelset.";
   if (m.includes("INVALID_BOOKING")) return "Udfyld navn og en gyldig e-mail.";
@@ -80,8 +86,8 @@ export function errorText(e: { message?: string } | null) {
   return "Noget gik galt. Prøv igen.";
 }
 
-export async function guestLogin(reference: string, room: string) {
-  const { data, error } = await supabase.rpc("guest_login", { _reference: reference, _room: room });
+export async function guestLogin(reference: string, name: string) {
+  const { data, error } = await supabase.rpc("guest_login", { _reference: reference, _name: name });
   if (error) throw new Error(errorText(error));
   return data as unknown as GuestSession;
 }
@@ -92,6 +98,11 @@ export async function guestJoin(token: string) {
 }
 export async function guestSession(token: string, device: string) {
   const { data, error } = await supabase.rpc("guest_session", { _token: token, _device: device });
+  if (error) throw new Error(errorText(error));
+  return data as unknown as GuestSession;
+}
+export async function guestCheckIn(token: string, device: string) {
+  const { data, error } = await supabase.rpc("guest_check_in" as never, { _token: token, _device: device } as never);
   if (error) throw new Error(errorText(error));
   return data as unknown as GuestSession;
 }

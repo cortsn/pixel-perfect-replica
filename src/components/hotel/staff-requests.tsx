@@ -1,21 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, BedDouble, Clock, Repeat, Sparkles } from 'lucide-react';
+import { AlertTriangle, Clock, Repeat, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { errorText, HOUSEKEEPING_LABELS, type HousekeepingStatus } from '@/lib/hotel';
-import { CLEANING_LABELS, fmtLeft, isOpen, rpc, sortCleaning, timeLeft, type CleaningRequest, type CleaningStatus, type EarlyCheckin } from '@/lib/cleaning';
+import { errorText } from '@/lib/hotel';
+import { CLEANING_LABELS, fmtLeft, isOpen, rpc, sortCleaning, timeLeft, type CleaningRequest, type CleaningStatus } from '@/lib/cleaning';
 
 const hm = (iso: string) => new Date(iso).toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' });
-type Data = { requests: CleaningRequest[]; early: EarlyCheckin[] };
+type Data = { requests: CleaningRequest[] };
 
 export function StaffRequests({ pin }: { pin: string }) {
-  const [data, setData] = useState<Data>({ requests: [], early: [] });
+  const [data, setData] = useState<Data>({ requests: [] });
   const [now, setNow] = useState(() => Date.now());
   const [busy, setBusy] = useState<string | null>(null);
   const load = useCallback(async () => {
     const { data: d, error } = await rpc<Data>('staff_cleaning', { _pin: pin });
     if (error) return;
-    setData({ requests: d?.requests ?? [], early: d?.early ?? [] });
+    setData({ requests: d?.requests ?? [] });
   }, [pin]);
   useEffect(() => {
     void load();
@@ -32,22 +32,19 @@ export function StaffRequests({ pin }: { pin: string }) {
     toast.success(`Værelse ${r.room_number}: ${CLEANING_LABELS[status]}`);
     await load();
   }
-  async function setEarly(e: EarlyCheckin, status: 'approved' | 'declined') {
-    setBusy(e.id);
-    const { error } = await rpc('staff_set_early_checkin', { _pin: pin, _booking: e.id, _status: status });
-    setBusy(null);
-    if (error) { toast.error(errorText(error)); return; }
-    toast.success(`Værelse ${e.room_number}: ${status === 'approved' ? 'tidlig check-in godkendt' : 'afvist'}`);
-    await load();
-  }
+  return <StaffRequestsView requests={data.requests} now={now} busy={busy} onCleaning={setCleaning} />;
+}
 
-  const open = sortCleaning(data.requests.filter(r => isOpen(r.status)), now);
-  const closed = data.requests.filter(r => !isOpen(r.status));
-  const earlyOpen = data.early.filter(e => e.early_checkin_status === 'requested');
-  const earlyDone = data.early.filter(e => e.early_checkin_status !== 'requested');
+/** Ren visning, så demo-siden kan bruge samme layout uden database. */
+export function StaffRequestsView({ requests, now, busy, onCleaning: setCleaning }: {
+  requests: CleaningRequest[]; now: number; busy: string | null;
+  onCleaning: (r: CleaningRequest, status: Exclude<CleaningStatus, 'requested'>) => void;
+}) {
+  const open = sortCleaning(requests.filter(r => isOpen(r.status)), now);
+  const closed = requests.filter(r => !isOpen(r.status));
 
   return (
-    <div className="grid gap-8 xl:grid-cols-2">
+    <div>
       <section className="min-w-0">
         <div className="flex items-baseline justify-between gap-2">
           <h2 className="text-3xl">Rengøring</h2>
@@ -93,42 +90,6 @@ export function StaffRequests({ pin }: { pin: string }) {
         )}
       </section>
 
-      <section className="min-w-0">
-        <div className="flex items-baseline justify-between gap-2">
-          <h2 className="text-3xl">Tidlig check-in</h2>
-          <span className="text-sm text-muted-foreground">{earlyOpen.length} afventer</span>
-        </div>
-        <ul className="mt-4 space-y-3">
-          {earlyOpen.map(e => {
-            const ready = e.housekeeping_status === 'clean';
-            return (
-              <li key={e.id} className="rounded-lg border p-4">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <p className="font-display text-3xl leading-none">{e.room_number}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{e.guest_name} · {e.reference}</p>
-                  </div>
-                  <span className="text-right text-sm"><span className="block font-semibold">Vil komme kl. {e.early_checkin_time ? hm(e.early_checkin_time) : '–'}</span><span className="text-xs text-muted-foreground">Normal check-in kl. {hm(e.starts_at)}</span></span>
-                </div>
-                <p className={`mt-3 flex items-center gap-2 text-xs ${ready ? 'text-status-clean' : 'text-status-dirty'}`}><BedDouble className="h-4 w-4" />Værelset: {HOUSEKEEPING_LABELS[e.housekeeping_status as HousekeepingStatus] ?? e.housekeeping_status}{ready ? ' – klar' : ' – ikke klar endnu'}</p>
-                <div className="mt-3 flex gap-2">
-                  <Button size="sm" disabled={busy === e.id} onClick={() => setEarly(e, 'approved')}>Godkend</Button>
-                  <Button size="sm" variant="outline" disabled={busy === e.id} onClick={() => setEarly(e, 'declined')}>Afvis</Button>
-                </div>
-              </li>
-            );
-          })}
-          {earlyOpen.length === 0 && <li className="py-6 text-center text-sm text-muted-foreground">Ingen anmodninger om tidlig check-in</li>}
-        </ul>
-        {earlyDone.length > 0 && (
-          <details className="mt-3 text-sm">
-            <summary className="cursor-pointer text-muted-foreground">Besvarede ({earlyDone.length})</summary>
-            <ul className="mt-2 divide-y">
-              {earlyDone.map(e => <li key={e.id} className="flex justify-between gap-3 py-2"><span>Værelse {e.room_number} · {e.guest_name} · kl. {e.early_checkin_time ? hm(e.early_checkin_time) : '–'}</span><span className="text-muted-foreground">{e.early_checkin_status === 'approved' ? 'Godkendt' : 'Afvist'}</span></li>)}
-            </ul>
-          </details>
-        )}
-      </section>
     </div>
   );
 }

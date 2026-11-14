@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CalendarClock, Check, Clock, Info, Sparkles } from 'lucide-react';
+import { CalendarClock, Check, Info, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { todayAt, type CleaningRequest } from '@/lib/cleaning';
@@ -74,33 +74,4 @@ export function CleaningStatusNote({ req }: { req: CleaningRequest | null }) {
   }[req.status];
   const warn = req.status === 'not_reached';
   return <p className={`mt-3 rounded-md border p-3 text-sm ${warn ? 'border-destructive text-destructive' : ''}`} role="status">{text}</p>;
-}
-
-/** Tidlig check-in på ventesiden, før opholdet starter. */
-export function EarlyCheckinCard({ startsAt, early, busy, onRequest }: { startsAt: string; early: { time: string | null; status: 'requested' | 'approved' | 'declined' } | null; busy?: boolean; onRequest: (time: Date) => void }) {
-  const [time, setTime] = useState('');
-  const start = new Date(startsAt);
-  function submit() {
-    if (!time) { toast.error('Vælg hvornår du kan komme.'); return; }
-    const t = todayAt(time, start);
-    if (t >= start) { toast.error(`Vælg et tidspunkt før dit normale check-in (kl. ${hm(startsAt)}).`); return; }
-    onRequest(t);
-  }
-  const status = early?.status;
-  return (
-    <section className="w-full rounded-lg border p-5 text-center" aria-label="Tidlig check-in">
-      <h2 className="flex items-center justify-center gap-2 text-2xl"><Clock className="h-5 w-5 text-brass" />Tidlig check-in</h2>
-      {status === 'requested' && <p className="mt-3 text-sm" role="status">Du har bedt om at komme kl. {early?.time ? hm(early.time) : ''}. Vi svarer, så snart værelset er klart.</p>}
-      {status === 'approved' && <p className="mt-3 text-sm text-status-clean" role="status">Godkendt! Du kan tjekke ind kl. {early?.time ? hm(early.time) : hm(startsAt)}.</p>}
-      {status !== 'approved' && (
-        <>
-          {status === 'declined' && <p className="mt-3 text-sm text-destructive" role="status">Hotellet kan desværre ikke tilbyde tidlig check-in på det tidspunkt. Du kan prøve et andet.</p>}
-          <p className="mt-3 text-sm text-muted-foreground">Normal check-in er kl. {hm(startsAt)}. Hvornår vil du gerne komme?</p>
-          <input type="time" aria-label="Ønsket tidspunkt" value={time} onChange={e => setTime(e.target.value)} className="mx-auto mt-3 block w-40 rounded-md border bg-card p-3 text-center text-xl" />
-          <Button className="mt-3 h-12 w-full" disabled={busy} onClick={submit}>{status === 'requested' ? 'Skift ønsket tidspunkt' : 'Anmod om tidlig check-in'}</Button>
-          <p className="mt-2 text-xs text-muted-foreground">Det afhænger af, om værelset er klart.</p>
-        </>
-      )}
-    </section>
-  );
 }

@@ -5,9 +5,10 @@ import { PmsPanel } from "@/components/hotel/pms-panel";
 import { OrdersBoard } from "@/components/hotel/orders-board";
 import { OpsPanel } from "@/components/hotel/ops-panel";
 import { StaffRequests } from "@/components/hotel/staff-requests";
+import { StaffStays } from "@/components/hotel/staff-stays";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { errorText, HOUSEKEEPING_LABELS, nextOrderStatus, ORDER_LABELS, type HousekeepingStatus, type OrderStatus } from "@/lib/hotel";
+import { errorText, nextOrderStatus, ORDER_LABELS, type OrderStatus } from "@/lib/hotel";
 
 export const Route = createFileRoute("/personale")({
   head: () => ({
@@ -24,19 +25,7 @@ export const Route = createFileRoute("/personale")({
 });
 
 type Order = { id: string; room_number: string; type: string; details: string; status: OrderStatus; cancelled?: boolean; created_at: string; updated_at?: string; quantity?: number };
-type Room = { number: string; floor: number; housekeeping_status: HousekeepingStatus; exchange_towels: boolean };
-
-const ROOM_CYCLE: HousekeepingStatus[] = ["occupied", "needs_cleaning", "cleaning", "clean"];
-const ROOM_SHORT: Record<HousekeepingStatus, string> = { occupied: "Gæst", needs_cleaning: "Skal rengøres", cleaning: "I gang", clean: "Rengjort" };
-const ROOM_CLS: Record<HousekeepingStatus, string> = {
-  occupied: "border-status-occupied bg-status-occupied/10",
-  needs_cleaning: "border-status-dirty bg-status-dirty/15",
-  cleaning: "border-status-cleaning bg-status-cleaning/20",
-  clean: "border-status-clean bg-status-clean/10",
-};
-const DOT: Record<HousekeepingStatus, string> = {
-  occupied: "bg-status-occupied", needs_cleaning: "bg-status-dirty", cleaning: "bg-status-cleaning", clean: "bg-status-clean",
-};
+type Room = { number: string };
 
 function Staff() {
   const [pin, setPin] = useState<string | null>(null);
@@ -73,13 +62,10 @@ function Staff() {
 function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [roomQ, setRoomQ] = useState("");
-  const [roomStatus, setRoomStatus] = useState<HousekeepingStatus | "all">("all");
-  const [roomFloor, setRoomFloor] = useState<number | "all">("all");
 
   useEffect(() => {
     const loadOrders = () => supabase.from("orders").select("*").order("created_at", { ascending: false }).limit(50).then(({ data }) => setOrders(((data as Order[]) ?? []).map(o=>({...o,status:o.cancelled?"cancelled":o.status}))));
-    const loadRooms = () => supabase.from("rooms").select("number,floor,housekeeping_status,exchange_towels").order("number").then(({ data }) => setRooms((data as Room[]) ?? []));
+    const loadRooms = () => supabase.from("rooms").select("number").order("number").then(({ data }) => setRooms((data as Room[]) ?? []));
     loadOrders(); loadRooms();
     const ch = supabase.channel(`staff-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, (p) => {
@@ -88,8 +74,7 @@ function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
         loadOrders();
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, loadOrders)
-      .on("postgres_changes", { event: "*", schema: "public", table: "rooms" }, loadRooms)
-      .subscribe();
+            .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, []);
 
@@ -99,28 +84,17 @@ function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
     if (error) toast.error(errorText(error));
     else { setOrders((os) => os.map((x) => (x.id === o.id ? { ...x, status: next, updated_at: new Date().toISOString() } : x))); toast.success(`Værelse ${o.room_number}: ${ORDER_LABELS[next]}`); }
   }
-  async function changeRoom(r: Room, next: HousekeepingStatus) {
-    if (r.housekeeping_status === next) return;
-    const { error } = await supabase.rpc("staff_set_room_status", { _pin: pin, _room: r.number, _status: next });
-    if (error) toast.error(errorText(error));
-    else {
-      setRooms((rs) => rs.map((x) => (x.number === r.number ? { ...x, housekeeping_status: next, exchange_towels: next === "occupied" ? false : x.exchange_towels } : x)));
-      toast.success(`Værelse ${r.number}: ${HOUSEKEEPING_LABELS[next]}`);
-    }
-  }
-
-  const floors = [...new Set(rooms.map((r) => r.floor))].sort((a, b) => b - a);
-  const shown = rooms.filter((r) => (roomStatus === "all" || r.housekeeping_status === roomStatus) && (roomFloor === "all" || r.floor === roomFloor) && (!roomQ.trim() || r.number.includes(roomQ.trim())));
-  const shownFloors = floors.filter((f) => shown.some((r) => r.floor === f));
-
   return (
     <div className="min-h-screen">
-      <header className="flex items-center justify-between bg-gradient-forest px-8 py-5 text-forest-foreground">
+      <header className="sticky top-0 z-40 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 bg-forest px-4 py-3 text-forest-foreground shadow-md lg:px-8">
         <div className="flex items-baseline gap-4">
           <span className="font-display text-2xl">HotelPilot</span>
           <span className="eyebrow text-brass">Personale</span>
         </div>
-        <div className="flex items-center gap-6 text-sm">
+        <nav aria-label="Sektioner" className="order-3 flex w-full gap-1 overflow-x-auto text-sm sm:order-none sm:w-auto">
+          {[["#foresp","Rengøring"],["#ordrer","Ordrer"],["#ophold","Ophold"],["#pms","PMS"]].map(([h,l]) => <a key={h} href={h} className="whitespace-nowrap rounded-full px-3 py-1.5 text-forest-foreground/75 hover:bg-forest-foreground/10 hover:text-forest-foreground">{l}</a>)}
+        </nav>
+        <div className="flex items-center gap-4 text-sm">
           <span className="flex items-center gap-2"><span className="h-2 w-2 animate-pulse rounded-full bg-status-clean" />Live</span>
           <Button onClick={onLogout} variant="ghost" className="opacity-70">Log ud</Button>
         </div>
@@ -128,50 +102,11 @@ function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
 
       <OpsPanel pin={pin} orders={orders} />
       <main className="space-y-8 p-6 lg:p-8">
-        <StaffRequests pin={pin} />
-        <OrdersBoard orders={orders} onAdvance={cycleOrder} />
-        <section className="min-w-0">
-          <h2 className="text-3xl">Værelsesstatus</h2>
-          <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-            <input value={roomQ} onChange={(e) => setRoomQ(e.target.value)} inputMode="numeric" aria-label="Søg værelse" placeholder="Søg værelsesnummer" className="w-full rounded-md border bg-card px-3 py-2 text-sm" />
-            <select aria-label="Filtrer etage" value={roomFloor} onChange={(e) => setRoomFloor(e.target.value === "all" ? "all" : Number(e.target.value))} className="rounded-md border bg-card p-2 text-sm">
-              <option value="all">Alle etager</option>
-              {floors.map((f) => <option key={f} value={f}>{f}. sal</option>)}
-            </select>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2 text-xs" role="group" aria-label="Filtrer status">
-            <Button size="sm" variant={roomStatus === "all" ? "default" : "outline"} aria-pressed={roomStatus === "all"} className="rounded-full" onClick={() => setRoomStatus("all")}>Alle ({rooms.length})</Button>
-            {ROOM_CYCLE.map((st) => (
-              <Button key={st} size="sm" variant={roomStatus === st ? "default" : "outline"} aria-pressed={roomStatus === st} className="rounded-full" onClick={() => setRoomStatus(roomStatus === st ? "all" : st)}>
-                <span className={`h-2.5 w-2.5 rounded-full ${DOT[st]}`} />{HOUSEKEEPING_LABELS[st]} ({rooms.filter((r) => r.housekeeping_status === st).length})
-              </Button>
-            ))}
-          </div>
-          <div className="mt-5 space-y-4">
-            {shown.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Ingen værelser matcher dit filter</p>}
-            {shownFloors.map((f) => (
-              <div key={f}>
-                <p className="eyebrow mb-2 text-muted-foreground">{f}. sal</p>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  {shown.filter((r) => r.floor === f).map((r) => (
-                    <div key={r.number} className={`rounded-lg border-2 p-3 ${ROOM_CLS[r.housekeeping_status]}`}>
-                      <p className="font-display text-3xl">{r.number}</p>
-                      <p className="mt-1 min-h-8 text-xs font-semibold">{HOUSEKEEPING_LABELS[r.housekeeping_status]}</p>
-                      {r.exchange_towels && <p className="mt-1 text-xs">Håndklædeskift: Ja</p>}
-                      <div className="mt-3 grid grid-cols-2 gap-1" role="group" aria-label={`Status for værelse ${r.number}`}>
-                        {ROOM_CYCLE.map((st) => (
-                          <Button key={st} size="sm" variant={r.housekeeping_status === st ? "default" : "outline"} aria-pressed={r.housekeeping_status === st} className="h-8 whitespace-normal px-1 text-[11px] leading-tight" onClick={() => changeRoom(r, st)}>{ROOM_SHORT[st]}</Button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+        <div id="foresp"><StaffRequests pin={pin} /></div>
+        <div id="ordrer"><OrdersBoard orders={orders} onAdvance={cycleOrder} /></div>
+        <StaffStays pin={pin} />
       </main>
-      <PmsPanel pin={pin} rooms={rooms.map(r=>r.number)} />
+      <div id="pms"><PmsPanel pin={pin} rooms={rooms.map(r=>r.number)} /></div>
     </div>
   );
 }

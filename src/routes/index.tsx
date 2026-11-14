@@ -9,7 +9,7 @@ export const Route = createFileRoute("/")({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { title: "HotelPilot — Gæsteportal" },
-      { name: "description", content: "Log ind med dit bookingnummer og få adgang til dit værelse, room service og digital nøgle." },
+      { name: "description", content: "Log ind med dit bookingnummer og navn, og tjek ind fra telefonen." },
       { property: "og:title", content: "HotelPilot — Gæsteportal" },
       { property: "og:description", content: "Din digitale concierge: digital nøgle, room service og rengøring." },
     ],
@@ -20,7 +20,7 @@ export const Route = createFileRoute("/")({
 function Login() {
   const navigate = useNavigate();
   const [ref, setRef] = useState("");
-  const [room, setRoom] = useState("");
+  const [name, setName] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -29,7 +29,7 @@ function Login() {
     setBusy(true);
     setErr("");
     try {
-      const s = await guestLogin(ref, room);
+      const s = await guestLogin(ref, name);
       saveSession(s);
       navigate({ to: "/gaest", search: { t: undefined } });
     } catch (e) {
@@ -53,10 +53,10 @@ function Login() {
           <h1 className="mt-3 text-5xl leading-[1.05]">Dit ophold, <em>samlet ét sted.</em></h1>
           <form onSubmit={submit} className="mt-8 space-y-3">
             <Field label="Bookingnummer" value={ref} onChange={setRef} placeholder="HP-1001" />
-            <Field label="Værelsesnummer" value={room} onChange={setRoom} placeholder="101" inputMode="numeric" />
+            <Field label="Fulde navn" value={name} onChange={setName} placeholder="Som på bookingen" autoComplete="name" />
             {err && <p className="text-sm text-status-dirty">{err}</p>}
             <button disabled={busy} className="w-full rounded-full bg-gradient-brass py-4 font-semibold text-accent-foreground shadow-soft transition active:scale-[0.98] disabled:opacity-60">
-              {busy ? "Logger ind…" : "Åbn mit værelse"}
+              {busy ? "Logger ind…" : "Log ind"}
             </button>
           </form>
           <p className="mt-5 text-center text-sm"><Link to="/demo" className="text-brass underline">Prøv demo (ingen data gemmes)</Link></p>
@@ -66,7 +66,7 @@ function Login() {
   );
 }
 
-function Field(props: { label: string; value: string; onChange: (v: string) => void; placeholder: string; inputMode?: "numeric" }) {
+function Field(props: { label: string; value: string; onChange: (v: string) => void; placeholder: string; inputMode?: "numeric"; autoComplete?: string }) {
   return (
     <label className="block rounded-2xl border border-forest-foreground/20 bg-forest/60 px-4 py-3 backdrop-blur">
       <span className="eyebrow text-forest-foreground/60">{props.label}</span>
@@ -74,6 +74,7 @@ function Field(props: { label: string; value: string; onChange: (v: string) => v
         required
         value={props.value}
         inputMode={props.inputMode}
+        autoComplete={props.autoComplete}
         onChange={(e) => props.onChange(e.target.value)}
         placeholder={props.placeholder}
         className="mt-1 block w-full bg-transparent text-lg outline-none placeholder:text-forest-foreground/30"

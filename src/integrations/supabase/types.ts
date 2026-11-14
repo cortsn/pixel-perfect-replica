@@ -361,7 +361,7 @@ export type Database = {
       }
       guest_join: { Args: { _token: string }; Returns: Json }
       guest_login: {
-        Args: { _reference: string; _room: string }
+        Args: { _reference: string; _name: string }
         Returns: Json
       }
       guest_order: {

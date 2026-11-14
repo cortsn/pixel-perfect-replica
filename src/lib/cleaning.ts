@@ -45,13 +45,13 @@ export function fmtLeft(ms: number) {
   return h > 0 ? `${h} t ${min % 60} min` : `${min} min`;
 }
 
-/** Kortest tid tilbage først. Tidsrum der er udløbet kommer efter, og "når som helst" kommer til sidst. */
-export function sortCleaning<T extends Pick<CleaningRequest, "away_until" | "created_at">>(list: T[], now: number): T[] {
+/** Genbestillinger (ikke nået første gang) først, derefter kortest tid tilbage. Udløbne tidsrum kommer efter, og "når som helst" til sidst. */
+export function sortCleaning<T extends Pick<CleaningRequest, "away_until" | "created_at"> & { is_repeat?: boolean }>(list: T[], now: number): T[] {
   const key = (r: T) => {
     const left = timeLeft(r, now);
     return left === null ? Number.MAX_SAFE_INTEGER : left <= 0 ? Number.MAX_SAFE_INTEGER / 2 : left;
   };
-  return [...list].sort((a, b) => key(a) - key(b) || Date.parse(a.created_at) - Date.parse(b.created_at));
+  return [...list].sort((a, b) => Number(!!b.is_repeat) - Number(!!a.is_repeat) || key(a) - key(b) || Date.parse(a.created_at) - Date.parse(b.created_at));
 }
 
 /** Kalde-hjælper, så koden virker, før de genererede databasetyper kender de nye funktioner. */
