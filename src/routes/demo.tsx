@@ -87,7 +87,7 @@ function Demo() {
       <div className="bg-brass px-4 py-2 text-center text-sm font-semibold text-accent-foreground">
         DEMO — eksempeldata. Intet gemmes, og alt nulstilles, når du genindlæser siden.
       </div>
-      <nav className="flex items-center justify-center gap-2 border-b p-3">
+      <nav className="flex flex-wrap items-center justify-center gap-2 border-b p-3">
         <Button variant={view === "staff" ? "default" : "outline"} onClick={() => setView("staff")}>Personale</Button>
         <Button variant={view === "guest" ? "default" : "outline"} onClick={() => setView("guest")}>Gæst</Button>
         <Button variant="ghost" size="sm" onClick={() => setStays(l => l.map(x => x.id === "mine" ? { ...x, ends_at: new Date().toISOString(), checked_in_at: x.checked_in_at ?? new Date().toISOString() } : x))}>Afslut gæstens ophold (demo)</Button>

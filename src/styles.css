@@ -101,7 +101,12 @@
 }
 
 @layer base {
-  html { scroll-behavior: smooth; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; overflow-x: hidden; }
+  /* Appen skal ligge fast på mobil: ingen knibe-zoom eller dobbelttryk-zoom (iOS ignorerer viewport-låsen). */
+  html, body { touch-action: pan-x pan-y; }
+  body { overflow-x: hidden; }
+  /* Under 16 px zoomer iOS ind, når et felt får fokus. */
+  input, textarea, select { font-size: 16px; }
   [id] { scroll-margin-top: 4.5rem; }
   h1, h2, h3 { letter-spacing: -0.02em; font-weight: 650; }
   * {
