@@ -4,6 +4,7 @@ import hero from "@/assets/hero.jpg";
 import { guestLogin, saveSession } from "@/lib/hotel";
 import { useAppMode } from "@/lib/platform";
 import { InstallHint } from "@/components/hotel/install-hint";
+import { Logo } from "@/components/hotel/logo";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -48,7 +49,7 @@ function Login() {
       <div className="absolute inset-0 bg-gradient-to-t from-forest via-forest/70 to-transparent" />
       <div className="relative mx-auto flex min-h-screen max-w-md flex-col justify-between px-6 py-10">
         <div className="flex items-center justify-between">
-          <span className="font-display text-2xl tracking-wide">HotelPilot</span>
+          <Logo />
           {appMode === false && <Link to="/personale" className="eyebrow text-brass">Personale</Link>}
         </div>
         <div>

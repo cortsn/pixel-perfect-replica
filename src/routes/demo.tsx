@@ -1,3 +1,4 @@
+import { Logo } from "@/components/hotel/logo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -174,7 +175,7 @@ function GuestDemo({ st }: { st: DemoState }) {
   return (
     <div className="mx-auto max-w-md space-y-4 px-4 pb-28">
       <header className="-mx-4 rounded-b-3xl bg-gradient-forest px-6 pb-8 pt-7 text-forest-foreground">
-        <span className="font-display text-2xl">HotelPilot</span>
+        <Logo />
         <p className="eyebrow mt-7 text-brass">Værelse 101</p>
         <h1 className="mt-2 text-4xl">Velkommen, Anna</h1>
       </header>
