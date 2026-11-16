@@ -23,13 +23,13 @@ REVOKE ALL ON FUNCTION public.guest_login(text,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.guest_login(text,text) TO anon,authenticated;
 
 -- Gæste-sessionen får check-in-tidspunkt og besked om ændret tid. Wi-Fi vises først efter check-in.
-CREATE OR REPLACE FUNCTION public.guest_info(_b bookings,_device uuid) RETURNS json LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$
-SELECT json_build_object('access_token',_b.access_token,'device_id',_device,'guest_name',_b.guest_name,'room_number',_b.room_number,'reference',_b.reference,'capacity',r.capacity,'guests',_b.guests,'towel_limit',_b.guests,'towels_used',towels_used(_b.id),'max_devices',_b.guests+2,'devices',(SELECT count(*) FROM devices d WHERE d.booking_id=_b.id),'housekeeping_status',CASE WHEN r.cleaning_booking_id=_b.id THEN r.housekeeping_status ELSE 'occupied' END,
- 'wifi_ssid',CASE WHEN now()>=_b.starts_at AND now()<_b.ends_at AND _b.active AND _b.checked_in_at IS NOT NULL THEN (SELECT value FROM hotel_secrets WHERE key='wifi_ssid') END,
- 'wifi_password',CASE WHEN now()>=_b.starts_at AND now()<_b.ends_at AND _b.active AND _b.checked_in_at IS NOT NULL THEN (SELECT value FROM hotel_secrets WHERE key='wifi_password') END,
- 'starts_at',_b.starts_at,'ends_at',_b.ends_at,'server_now',now(),'dinner_choice',_b.dinner_choice,'feedback_given',EXISTS(SELECT 1 FROM guest_feedback f WHERE f.booking_id=_b.id),
+CREATE OR REPLACE FUNCTION public.guest_info(_b public.bookings,_device uuid) RETURNS json LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$
+SELECT json_build_object('access_token',_b.access_token,'device_id',_device,'guest_name',_b.guest_name,'room_number',_b.room_number,'reference',_b.reference,'capacity',r.capacity,'guests',_b.guests,'towel_limit',_b.guests,'towels_used',public.towels_used(_b.id),'max_devices',_b.guests+2,'devices',(SELECT count(*) FROM public.devices d WHERE d.booking_id=_b.id),'housekeeping_status',CASE WHEN r.cleaning_booking_id=_b.id THEN r.housekeeping_status ELSE 'occupied' END,
+ 'wifi_ssid',CASE WHEN now()>=_b.starts_at AND now()<_b.ends_at AND _b.active AND _b.checked_in_at IS NOT NULL THEN (SELECT value FROM public.hotel_secrets WHERE key='wifi_ssid') END,
+ 'wifi_password',CASE WHEN now()>=_b.starts_at AND now()<_b.ends_at AND _b.active AND _b.checked_in_at IS NOT NULL THEN (SELECT value FROM public.hotel_secrets WHERE key='wifi_password') END,
+ 'starts_at',_b.starts_at,'ends_at',_b.ends_at,'server_now',now(),'dinner_choice',_b.dinner_choice,'feedback_given',EXISTS(SELECT 1 FROM public.guest_feedback f WHERE f.booking_id=_b.id),
  'checked_in_at',_b.checked_in_at,'notice_kind',_b.notice_kind,'notice_at',_b.notice_at)
-FROM rooms r WHERE r.number=_b.room_number $$;
+FROM public.rooms r WHERE r.number=_b.room_number $$;
 REVOKE ALL ON FUNCTION public.guest_info(public.bookings,uuid) FROM PUBLIC,anon,authenticated;
 
 -- Gæst: tjek selv ind fra telefonen, når opholdet er startet.
