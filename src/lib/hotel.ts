@@ -20,6 +20,8 @@ export type GuestSession = {
   towel_limit: number;
   towels_used: number;
   feedback_given: boolean;
+  breakfast_choice: "hotel" | "out" | null;
+  lunch_choice: "hotel" | "out" | null;
   checked_in_at: string | null;
   notice_kind: "start" | "end" | "both" | null;
   notice_at: string | null;
@@ -46,20 +48,54 @@ export const ORDER_LABELS: Record<OrderStatus, string> = {
 export const nextOrderStatus = (s: OrderStatus): OrderStatus =>
   s === "pending" ? "in_progress" : s === "in_progress" ? "ready" : s === "ready" ? "done" : s;
 
-const KEY = "hotelpilot-guest";
+const KEY = "hotelpilot-guests";
+const OLD_KEY = "hotelpilot-guest";
+export type StoredRoom = { t: string; d: string; room?: string; name?: string };
+type Store = { active: string | null; list: StoredRoom[] };
 
-export function saveSession(s: GuestSession) {
-  localStorage.setItem(KEY, JSON.stringify({ t: s.access_token, d: s.device_id }));
-}
-export function loadStored(): { t: string; d: string } | null {
+function readStore(): Store {
   try {
-    return JSON.parse(localStorage.getItem(KEY) || "null");
+    const raw = localStorage.getItem(KEY);
+    if (raw) return JSON.parse(raw) as Store;
+    const old = JSON.parse(localStorage.getItem(OLD_KEY) || "null") as StoredRoom | null;
+    if (old?.t) return { active: old.t, list: [old] };
   } catch {
-    return null;
+    /* ingen lagring */
+  }
+  return { active: null, list: [] };
+}
+function writeStore(st: Store) {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(st));
+    localStorage.removeItem(OLD_KEY);
+  } catch {
+    /* ingen lagring */
   }
 }
+
+/** Gemmer værelset og gør det til det åbne. Et værelse mere kan lægges til uden at miste de andre. */
+export function saveSession(s: GuestSession) {
+  const st = readStore();
+  const entry = { t: s.access_token, d: s.device_id, room: s.room_number, name: s.guest_name };
+  writeStore({ active: s.access_token, list: [...st.list.filter((x) => x.t !== s.access_token), entry] });
+}
+export function loadStored(): { t: string; d: string } | null {
+  const st = readStore();
+  return st.list.find((x) => x.t === st.active) ?? null;
+}
+export function listStored(): { rooms: StoredRoom[]; active: string | null } {
+  const st = readStore();
+  return { rooms: st.list, active: st.active };
+}
+export function setActiveStored(token: string) {
+  const st = readStore();
+  if (st.list.some((x) => x.t === token)) writeStore({ ...st, active: token });
+}
+/** Fjerner det åbne værelse. Har gæsten andre værelser, bliver det næste det åbne. */
 export function clearSession() {
-  localStorage.removeItem(KEY);
+  const st = readStore();
+  const list = st.list.filter((x) => x.t !== st.active);
+  writeStore({ active: list[0]?.t ?? null, list });
 }
 
 export function errorText(e: { message?: string } | null) {
@@ -73,7 +109,9 @@ export function errorText(e: { message?: string } | null) {
   if (m.includes("NOT_CHECKED_IN")) return "Tjek ind først, så virker nøglen.";
   if (m.includes("BOOKING_NOT_FOUND")) return "Opholdet findes ikke længere.";
   if (m.includes("INVALID_STAY")) return "Sluttidspunktet skal være efter starttidspunktet.";
-  if (m.includes("TOWEL_LIMIT")) return "Du har bestilt det maksimale antal håndklæder for dit ophold.";
+  if (m.includes("TOWEL_LIMIT")) return "Du kan højst bytte lige så mange håndklæder, som der er personer på værelset.";
+  if (m.includes("STAY_NOT_ENDED")) return "Du kan give en rating, når dit ophold er slut.";
+  if (m.includes("ALREADY_RATED")) return "Tak, du har allerede givet en rating.";
   if (m.includes("INVALID_GUESTS")) return "Antal gæster passer ikke til værelset.";
   if (m.includes("INVALID_BOOKING")) return "Udfyld navn og en gyldig e-mail.";
   if (m.includes("FORBIDDEN")) return "Forkert personalekode.";
@@ -106,3 +144,17 @@ export async function guestCheckIn(token: string, device: string) {
   if (error) throw new Error(errorText(error));
   return data as unknown as GuestSession;
 }
+
+export type RatingState = { guest_name: string; room_number: string; ended: boolean; rated: boolean };
+export async function guestRatingState(token: string, device: string) {
+  const { data, error } = await supabase.rpc("guest_rating_state" as never, { _token: token, _device: device } as never);
+  if (error) throw new Error(errorText(error));
+  return data as unknown as RatingState;
+}
+export async function rateStay(token: string, device: string, rating: number, comment: string) {
+  const { error } = await supabase.rpc("guest_rate_stay" as never, { _token: token, _device: device, _rating: rating, _comment: comment } as never);
+  if (error) throw new Error(errorText(error));
+}
+export type Meal = "breakfast" | "lunch" | "dinner";
+export const MEAL_LABELS: Record<Meal, string> = { breakfast: "Morgenmad", lunch: "Frokost", dinner: "Aftensmad" };
+export const MEAL_FIELD: Record<Meal, "breakfast_choice" | "lunch_choice" | "dinner_choice"> = { breakfast: "breakfast_choice", lunch: "lunch_choice", dinner: "dinner_choice" };

@@ -1,11 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Check, KeyRound, Leaf, Minus, Plus, ShoppingBasket, Sparkles, Star, Utensils, Wifi } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
+import { Check, KeyRound, Minus, Plus, ShoppingBasket, Share2, Sparkles, Star, Utensils, Wifi } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { OrdersBoard, type BoardOrder } from "@/components/hotel/orders-board";
-import { nextOrderStatus, ORDER_LABELS } from "@/lib/hotel";
-import { dinnerStats, purchaseSuggestions, towelsLeft } from "@/lib/ops";
+import { nextOrderStatus, ORDER_LABELS, type Meal } from "@/lib/hotel";
+import { mealStats, purchaseSuggestions } from "@/lib/ops";
+import { MealsOverview } from "@/components/hotel/meals-overview";
+import { MealsCard, MealsForm } from "@/components/hotel/meals";
+import { RatingForm } from "@/components/hotel/rating";
+import { RoomSwitcher } from "@/components/hotel/room-switcher";
 import { RoomService } from "@/components/hotel/room-service";
 import { HotelModal } from "@/components/hotel/modal";
 import { StaffRequestsView } from "@/components/hotel/staff-requests";
@@ -38,15 +43,15 @@ const sampleOrders = (): BoardOrder[] => {
   ];
 };
 const SAMPLE_BOOKINGS = [
-  { guests: 2, dinner_choice: "hotel" }, { guests: 2, dinner_choice: "hotel" }, { guests: 3, dinner_choice: "out" },
-  { guests: 1, dinner_choice: null }, { guests: 2, dinner_choice: "hotel" },
+  { guests: 2, breakfast_choice: "hotel", lunch_choice: null, dinner_choice: "hotel" }, { guests: 2, breakfast_choice: "hotel", lunch_choice: "out", dinner_choice: "hotel" },
+  { guests: 3, breakfast_choice: "out", lunch_choice: "hotel", dinner_choice: "out" }, { guests: 1, breakfast_choice: null, lunch_choice: null, dinner_choice: null },
 ];
 const sampleCleaning = (): CleaningRequest[] => {
   const at = (min: number) => new Date(Date.now() + min * 60000).toISOString();
   return [
-    { id: "c1", room_number: "204", guest_name: "Maria Holm", wants_towels: true, away_from: at(-60), away_until: at(40), status: "requested", is_repeat: false, created_at: at(-30) },
-    { id: "c2", room_number: "302", guest_name: "Peter Dahl", wants_towels: false, away_from: null, away_until: null, status: "requested", is_repeat: true, created_at: at(-10) },
-    { id: "c3", room_number: "103", guest_name: "Sofie Berg", wants_towels: true, away_from: at(-20), away_until: at(180), status: "in_progress", is_repeat: false, created_at: at(-45) },
+    { id: "c1", room_number: "204", guest_name: "Maria Holm", wants_towels: true, towel_count: 2, away_from: at(-60), away_until: at(40), status: "requested", is_repeat: false, created_at: at(-30) },
+    { id: "c2", room_number: "302", guest_name: "Peter Dahl", wants_towels: false, towel_count: 0, away_from: null, away_until: null, status: "requested", is_repeat: true, created_at: at(-10) },
+    { id: "c3", room_number: "103", guest_name: "Sofie Berg", wants_towels: true, towel_count: 1, away_from: at(-20), away_until: at(180), status: "in_progress", is_repeat: false, created_at: at(-45) },
   ];
 };
 
@@ -55,6 +60,8 @@ type DemoState = {
   stays: DemoStay[]; setStays: React.Dispatch<React.SetStateAction<DemoStay[]>>;
   cleaning: CleaningRequest[]; setCleaning: React.Dispatch<React.SetStateAction<CleaningRequest[]>>;
   now: number;
+  meals: Record<Meal, "hotel" | "out" | null>; setMeals: React.Dispatch<React.SetStateAction<Record<Meal, "hotel" | "out" | null>>>;
+  ratings: { room: string; rating: number; comment: string }[]; setRatings: React.Dispatch<React.SetStateAction<{ room: string; rating: number; comment: string }[]>>;
 };
 const sampleStays = (): DemoStay[] => {
   const at = (min: number) => new Date(Date.now() + min * 60000).toISOString();
@@ -71,8 +78,10 @@ function Demo() {
   const [stays, setStays] = useState<DemoStay[]>([]);
   const [cleaning, setCleaning] = useState<CleaningRequest[]>([]);
   const [now, setNow] = useState(() => Date.now());
+  const [meals, setMeals] = useState<Record<Meal, "hotel" | "out" | null>>({ breakfast: null, lunch: null, dinner: null });
+  const [ratings, setRatings] = useState([{ room: "201", rating: 5, comment: "Dejligt ophold, nem service." }, { room: "302", rating: 4, comment: "Lidt ventetid på room service." }]);
   useEffect(() => { setStays(sampleStays()); setCleaning(sampleCleaning()); const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
-  const st: DemoState = { stays, setStays, cleaning, setCleaning, now };
+  const st: DemoState = { stays, setStays, cleaning, setCleaning, now, meals, setMeals, ratings, setRatings };
   return (
     <div className="min-h-screen">
       <div className="bg-brass px-4 py-2 text-center text-sm font-semibold text-accent-foreground">
@@ -81,7 +90,8 @@ function Demo() {
       <nav className="flex items-center justify-center gap-2 border-b p-3">
         <Button variant={view === "staff" ? "default" : "outline"} onClick={() => setView("staff")}>Personale</Button>
         <Button variant={view === "guest" ? "default" : "outline"} onClick={() => setView("guest")}>Gæst</Button>
-        <Link to="/" className="ml-4 text-sm text-muted-foreground underline">Til forsiden</Link>
+        <Button variant="ghost" size="sm" onClick={() => setStays(l => l.map(x => x.id === "mine" ? { ...x, ends_at: new Date().toISOString(), checked_in_at: x.checked_in_at ?? new Date().toISOString() } : x))}>Afslut gæstens ophold (demo)</Button>
+        <Link to="/" className="ml-2 text-sm text-muted-foreground underline">Til forsiden</Link>
       </nav>
       {view === "staff" ? <StaffDemo st={st} /> : <GuestDemo st={st} />}
     </div>
@@ -92,7 +102,8 @@ function StaffDemo({ st }: { st: DemoState }) {
   const [orders, setOrders] = useState<BoardOrder[]>([]);
   const now = st.now;
   useEffect(() => { setOrders(sampleOrders()); }, []);
-  const d = dinnerStats(SAMPLE_BOOKINGS);
+  const ms = mealStats([...SAMPLE_BOOKINGS, { guests: 2, breakfast_choice: st.meals.breakfast, lunch_choice: st.meals.lunch, dinner_choice: st.meals.dinner }]);
+  const avg = Math.round((st.ratings.reduce((a, r) => a + r.rating, 0) / st.ratings.length) * 10) / 10;
   const buy = purchaseSuggestions([
     { type: "room_service", details: "Club sandwich" }, { type: "room_service", details: "Club sandwich" },
     { type: "room_service", details: "Kaffe & croissant" }, { type: "towels", details: "", quantity: 3 },
@@ -103,23 +114,14 @@ function StaffDemo({ st }: { st: DemoState }) {
         {[["#overblik", "Overblik"], ["#foresp", "Rengøring"], ["#ordrer", "Ordrer"], ["#ophold", "Ophold"]].map(([h, l]) => <a key={h} href={h} className="whitespace-nowrap rounded-full px-3 py-1.5 text-forest-foreground/75 hover:bg-forest-foreground/10 hover:text-forest-foreground">{l}</a>)}
       </nav>
       <section id="overblik" className="grid gap-4 border-b px-6 py-6 md:grid-cols-3 lg:px-8">
-        <article className="rounded-2xl border bg-card p-4 shadow-sm">
-          <p className="flex items-center gap-2 text-sm font-semibold"><Leaf className="h-4 w-4 text-primary" />Mindske madspild</p>
-          <p className="mt-3 flex items-baseline gap-2 font-display text-5xl leading-none">{d.eating}<span className="text-2xl text-muted-foreground">/ {d.total}</span></p>
-          <p className="mt-1 text-sm text-muted-foreground">gæster spiser på hotellet i aften</p>
-          <progress aria-label="Andel der spiser på hotellet" value={d.pct} max={100} className="hotel-progress mt-3 h-2 w-full" />
-          <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground"><Utensils className="h-3 w-3" />Forventet mad: ca. {d.kg} kg · {d.unanswered} har ikke svaret</p>
-        </article>
+        <MealsOverview stats={ms} />
         <article className="rounded-2xl border bg-card p-4 shadow-sm">
           <p className="flex items-center gap-2 text-sm font-semibold"><ShoppingBasket className="h-4 w-4 text-primary" />Indkøbsforslag (7 dage)</p>
           <ul className="mt-3 space-y-1 text-sm">{buy.map(b => <li key={b.item} className="flex justify-between gap-3"><span>{b.item}</span><span className="text-muted-foreground">køb ca. {b.suggest}</span></li>)}</ul>
         </article>
         <article className="rounded-2xl border bg-card p-4 shadow-sm">
-          <p className="flex items-center gap-2 text-sm font-semibold"><Star className="h-4 w-4 text-primary" />Gæsteanmeldelser · 4.5/5</p>
-          <ul className="mt-3 space-y-2 text-sm">
-            <li><span className="font-semibold">Værelse 201 · ★★★★★</span><p className="text-muted-foreground">Dejligt ophold, nem service.</p></li>
-            <li><span className="font-semibold">Værelse 302 · ★★★★</span><p className="text-muted-foreground">Lidt ventetid på room service.</p></li>
-          </ul>
+          <p className="flex items-center gap-2 text-sm font-semibold"><Star className="h-4 w-4 text-primary" />Gæsteanmeldelser · {avg}/5</p>
+          <ul className="mt-3 space-y-2 text-sm">{[...st.ratings].reverse().slice(0, 3).map((r, i) => <li key={i}><span className="font-semibold">Værelse {r.room} · {"★".repeat(r.rating)}</span>{r.comment && <p className="text-muted-foreground">{r.comment}</p>}</li>)}</ul>
         </article>
       </section>
       <main className="space-y-8 p-6 lg:p-8">
@@ -147,21 +149,26 @@ function StaffDemo({ st }: { st: DemoState }) {
 }
 
 function GuestDemo({ st }: { st: DemoState }) {
-  const limit = 2;
+  const guests = 2;
   const me = st.stays.find(x => x.id === "mine");
-  const [used, setUsed] = useState(0);
-  const [dinner, setDinner] = useState<"hotel" | "out" | null>(null);
   const [qty, setQty] = useState(1);
-  const [sheet, setSheet] = useState<"clean" | null>(null);
+  const [sheet, setSheet] = useState<"clean" | "meals" | "share" | "rooms" | null>(null);
+  const [rated, setRated] = useState(false);
   const [seen, setSeen] = useState(0);
-  const left = towelsLeft(limit, used);
-  const q = Math.min(qty, Math.max(left, 1));
+  const q = Math.min(qty, guests);
   const mine = [...st.cleaning].filter(c => c.room_number === "101").sort((a, b) => b.created_at.localeCompare(a.created_at))[0] ?? null;
   const mineOpen = mine && (mine.status === "requested" || mine.status === "in_progress");
   const card = "rounded-2xl border bg-card p-5 shadow-sm";
   if (!me) return null;
   const notice = me.notice && me.noticeAt > seen ? <StayNotice kind={me.notice} startsAt={me.starts_at} endsAt={me.ends_at} onDismiss={() => setSeen(me.noticeAt)} /> : null;
   const resetTimes = () => st.setStays(l => l.map(x => x.id === "mine" ? { ...x, starts_at: new Date(Date.now() + 90000).toISOString(), checked_in_at: null, notice: null } : x));
+  if (st.now >= Date.parse(me.ends_at)) return (
+    <div className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center gap-5 px-7 text-center">
+      <h1 className="text-4xl">Tak for dit ophold</h1>
+      <p className="max-w-sm text-muted-foreground">Dit ophold er slut. Gå til receptionen og tjek ud, hvis du ikke allerede har gjort det.</p>
+      {rated ? <p className="text-sm text-status-clean" role="status">Tak for din rating. Personalet kan se den under Personale.</p> : <div className="w-full rounded-2xl border bg-card p-5 shadow-sm"><RatingForm onSubmit={(rating, comment) => { st.setRatings(l => [...l, { room: "101", rating, comment }]); setRated(true); toast("Demo: rating ikke gemt"); }} /></div>}
+    </div>
+  );
   if (st.now < Date.parse(me.starts_at)) return <WaitingScreen name="Anna" startsAt={me.starts_at} clock={st.now} notice={notice} onLogout={resetTimes} />;
   if (!me.checked_in_at) return <CheckInScreen name="Anna" room="101" notice={notice} onLogout={resetTimes} onCheckIn={() => { st.setStays(l => l.map(x => x.id === "mine" ? { ...x, checked_in_at: new Date().toISOString() } : x)); toast("Du er tjekket ind. Velkommen!"); }} />;
   return (
@@ -176,27 +183,20 @@ function GuestDemo({ st }: { st: DemoState }) {
         <div className="flex items-center justify-between"><h2 className="text-3xl">Digital nøgle</h2><span className="flex items-center gap-1 text-xs text-status-clean"><Check className="h-4 w-4" />Aktiv</span></div>
         <Button className="mt-5 h-16 w-full rounded-full bg-gradient-brass text-lg font-semibold text-accent-foreground shadow-soft" onClick={() => toast("Demo: dør ikke tilsluttet")}><KeyRound className="!h-6 !w-6" />Lås dør op</Button>
       </section>
-      <section className={card}>
-        <h2 className="flex items-center gap-2 text-2xl"><Leaf className="h-5 w-5 text-primary" />Spiser du på hotellet i aften?</h2>
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          {(["hotel", "out"] as const).map(c => <Button key={c} variant={dinner === c ? "default" : "outline"} onClick={() => setDinner(d => (d === c ? null : c))}>{c === "hotel" ? "På hotellet" : "Ude i aften"}</Button>)}
-        </div>
-      </section>
+      <MealsCard choices={{ breakfast_choice: st.meals.breakfast, lunch_choice: st.meals.lunch, dinner_choice: st.meals.dinner }} onOpen={() => setSheet("meals")} />
       <section id="service" className={card}>
         <div className="flex items-center justify-between gap-3">
           <h2 className="flex items-center gap-2 text-xl"><Sparkles className="h-4 w-4 text-brass" />Håndklæder</h2>
-          <span className="text-xs text-muted-foreground">{left} tilbage</span>
+          <span className="text-xs text-muted-foreground">op til {guests} ad gangen</span>
         </div>
-        {left > 0 ? (
-          <div className="mt-3 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" aria-label="Færre" disabled={q <= 1} onClick={() => setQty(q - 1)}><Minus /></Button>
-              <span className="w-6 text-center text-xl font-semibold tabular-nums">{q}</span>
-              <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" aria-label="Flere" disabled={q >= left} onClick={() => setQty(q + 1)}><Plus /></Button>
-            </div>
-            <Button onClick={() => { setUsed(u => u + q); setQty(1); toast("Demo: bestilling ikke gemt"); }}>Bestil</Button>
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" aria-label="Færre" disabled={q <= 1} onClick={() => setQty(q - 1)}><Minus /></Button>
+            <span className="w-6 text-center text-xl font-semibold tabular-nums">{q}</span>
+            <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" aria-label="Flere" disabled={q >= guests} onClick={() => setQty(q + 1)}><Plus /></Button>
           </div>
-        ) : <p className="mt-3 rounded-md border p-3 text-sm">Alle håndklæder er bestilt. Kontakt receptionen for flere.</p>}
+          <Button onClick={() => { setQty(1); toast("Demo: bestilling ikke gemt"); }}>Bestil</Button>
+        </div>
       </section>
       <section id="rengoering" className={card}>
         <h2 className="flex items-center gap-2 text-2xl"><Sparkles className="h-5 w-5 text-brass" />Rengøring</h2>
@@ -208,6 +208,10 @@ function GuestDemo({ st }: { st: DemoState }) {
         <h2 className="flex items-center gap-2 text-2xl"><Utensils className="h-5 w-5 text-brass" />Room service</h2>
         <div className="mt-3 space-y-3"><RoomService room="101" onSubmit={(d) => toast(`Demo: ${d} — ikke sendt til køkkenet`)} /></div>
       </section>
+      <div className="grid grid-cols-2 gap-2">
+        <Button variant="outline" onClick={() => setSheet("share")}><Share2 />Del adgang</Button>
+        <Button variant="outline" onClick={() => setSheet("rooms")}>Mine værelser</Button>
+      </div>
       <section id="wifi" className="rounded-2xl bg-gradient-forest p-5 text-forest-foreground">
         <div className="flex items-center gap-2"><Wifi className="h-5 w-5 text-brass" /><h2 className="text-2xl">Wi-Fi</h2></div>
         <p className="mt-2 text-sm opacity-80">Netværk og kode vises her, når du er logget ind som rigtig gæst.</p>
@@ -220,10 +224,21 @@ function GuestDemo({ st }: { st: DemoState }) {
           ))}
         </ul>
       </nav>
+      {sheet === "meals" && <HotelModal title="Måltider" onClose={() => setSheet(null)}>
+        <MealsForm choices={{ breakfast_choice: st.meals.breakfast, lunch_choice: st.meals.lunch, dinner_choice: st.meals.dinner }} onChoose={(m, c) => st.setMeals(l => ({ ...l, [m]: l[m] === c ? null : c }))} />
+      </HotelModal>}
+      {sheet === "share" && <HotelModal title="Del adgang" onClose={() => setSheet(null)}>
+        <p className="text-sm">Scan koden eller send linket. Der er plads til {guests + 2} enheder ({guests} personer + 2 ekstra).</p>
+        <div className="flex justify-center rounded-lg bg-secondary p-5"><QRCodeSVG value="https://hotelpilot.example/gaest?t=demo" size={180} bgColor="transparent" fgColor="currentColor" /></div>
+        <Button asChild variant="outline"><a href={`sms:?&body=${encodeURIComponent("Her er adgang til værelse 101 på HotelPilot: https://hotelpilot.example/gaest?t=demo")}`}>Send som sms</a></Button>
+      </HotelModal>}
+      {sheet === "rooms" && <HotelModal title="Mine værelser" onClose={() => setSheet(null)}>
+        <RoomSwitcher rooms={[{ t: "a", d: "a", room: "101", name: "Anna Nielsen" }, { t: "b", d: "b", room: "102", name: "Anna Nielsen" }]} active="a" onOpen={() => toast("Demo: her skifter appen til værelse 102 med dets eget kontrolsystem")} onAdd={() => toast("Demo: her logger du ind med endnu et bookingnummer")} />
+      </HotelModal>}
       {sheet === "clean" && <HotelModal title="Bestil rengøring" onClose={() => setSheet(null)}>
-        <CleaningForm room="101" onSubmit={(towels, from, until) => {
+        <CleaningForm room="101" guests={guests} onSubmit={(towels, from, until) => {
           const repeat = mine?.status === "not_reached";
-          st.setCleaning(l => [...l, { id: `c${Date.now()}`, room_number: "101", guest_name: "Anna (dig)", wants_towels: towels, away_from: from ? from.toISOString() : null, away_until: until ? until.toISOString() : null, status: "requested", is_repeat: repeat, created_at: new Date().toISOString() }]);
+          st.setCleaning(l => [...l, { id: `c${Date.now()}`, room_number: "101", guest_name: "Anna (dig)", wants_towels: towels > 0, towel_count: towels, away_from: from ? from.toISOString() : null, away_until: until ? until.toISOString() : null, status: "requested", is_repeat: repeat, created_at: new Date().toISOString() }]);
           setSheet(null); toast("Demo: personalet kan se den under Personale (ikke gemt)");
         }} />
       </HotelModal>}

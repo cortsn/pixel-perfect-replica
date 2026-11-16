@@ -26,3 +26,15 @@ export function purchaseSuggestions(orders: { type: string; details: string; qua
   }
   return [...counts.entries()].map(([item, used]) => ({ item, used, perDay: Math.round((used / days) * 10) / 10, suggest: Math.ceil(used * 1.2) })).sort((a, b) => b.used - a.used);
 }
+
+type MealBooking = { guests: number; breakfast_choice?: string | null; lunch_choice?: string | null; dinner_choice: string | null };
+/** Hvor mange personer spiser på hotellet til hvert måltid, af dem der bor på hotellet nu. */
+export function mealStats(bookings: MealBooking[]) {
+  const total = bookings.reduce((a, b) => a + b.guests, 0);
+  const count = (f: 'breakfast_choice' | 'lunch_choice' | 'dinner_choice') => {
+    const eating = bookings.filter(b => b[f] === 'hotel').reduce((a, b) => a + b.guests, 0);
+    const unanswered = bookings.filter(b => !b[f]).reduce((a, b) => a + b.guests, 0);
+    return { eating, unanswered };
+  };
+  return { total, breakfast: count('breakfast_choice'), lunch: count('lunch_choice'), dinner: count('dinner_choice') };
+}

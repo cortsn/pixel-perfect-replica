@@ -3,7 +3,7 @@ import { AlertTriangle, Clock, Repeat, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { errorText } from '@/lib/hotel';
-import { CLEANING_LABELS, fmtLeft, isOpen, rpc, sortCleaning, timeLeft, type CleaningRequest, type CleaningStatus } from '@/lib/cleaning';
+import { CLEANING_LABELS, fmtLeft, towelText, isOpen, rpc, sortCleaning, timeLeft, type CleaningRequest, type CleaningStatus } from '@/lib/cleaning';
 
 const hm = (iso: string) => new Date(iso).toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' });
 type Data = { requests: CleaningRequest[] };
@@ -65,7 +65,7 @@ export function StaffRequestsView({ requests, now, busy, onCleaning: setCleaning
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2 text-xs">
                   {r.is_repeat && <span className="flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-1 font-semibold text-destructive"><Repeat className="h-3 w-3" />Bestilt igen – ikke nået første gang</span>}
-                  <span className="flex items-center gap-1 rounded-full border px-2 py-1"><Sparkles className="h-3 w-3" />{r.wants_towels ? 'Byt håndklæder' : 'Ingen håndklædebytte'}</span>
+                  <span className={`flex items-center gap-1 rounded-full border px-2 py-1 ${(r.towel_count ?? (r.wants_towels ? 1 : 0)) > 0 ? "border-primary/40 bg-primary/10 font-semibold text-primary" : ""}`}><Sparkles className="h-3 w-3" />{towelText(r)}</span>
                   {r.away_from && r.away_until
                     ? <span className={`flex items-center gap-1 rounded-full border px-2 py-1 ${ending ? 'border-destructive font-semibold text-destructive' : ''}`}><Clock className="h-3 w-3" />Væk {hm(r.away_from)}–{hm(r.away_until)} · {left !== null && left > 0 ? `${fmtLeft(left)} tilbage` : 'tidsrum udløbet'}</span>
                     : <span className="flex items-center gap-1 rounded-full border px-2 py-1"><Clock className="h-3 w-3" />Når som helst</span>}

@@ -6,6 +6,8 @@ export type CleaningRequest = {
   room_number: string;
   guest_name?: string;
   wants_towels: boolean;
+  /** Antal håndklæder der skal byttes. Mangler på ældre rækker. */
+  towel_count?: number;
   away_from: string | null;
   away_until: string | null;
   status: CleaningStatus;
@@ -65,4 +67,10 @@ export function todayAt(hhmm: string, base = new Date()) {
   const d = new Date(base);
   d.setHours(h ?? 0, m ?? 0, 0, 0);
   return d;
+}
+
+/** "Byt 2 håndklæder" / "Ingen håndklædebytte". */
+export function towelText(r: Pick<CleaningRequest, "wants_towels" | "towel_count">) {
+  const n = r.towel_count ?? (r.wants_towels ? 1 : 0);
+  return n > 0 ? `Byt ${n} ${n === 1 ? "håndklæde" : "håndklæder"}` : "Ingen håndklædebytte";
 }
