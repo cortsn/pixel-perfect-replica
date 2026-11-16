@@ -2,6 +2,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import hero from "@/assets/hero.jpg";
 import { guestLogin, saveSession } from "@/lib/hotel";
+import { useAppMode } from "@/lib/platform";
+import { InstallHint } from "@/components/hotel/install-hint";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -23,6 +25,7 @@ function Login() {
   const [name, setName] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const appMode = useAppMode();
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -46,7 +49,7 @@ function Login() {
       <div className="relative mx-auto flex min-h-screen max-w-md flex-col justify-between px-6 py-10">
         <div className="flex items-center justify-between">
           <span className="font-display text-2xl tracking-wide">HotelPilot</span>
-          <Link to="/personale" className="eyebrow text-brass">Personale</Link>
+          {appMode === false && <Link to="/personale" className="eyebrow text-brass">Personale</Link>}
         </div>
         <div>
           <p className="eyebrow text-brass">Velkommen</p>
@@ -60,6 +63,7 @@ function Login() {
             </button>
           </form>
           <p className="mt-5 text-center text-sm"><Link to="/demo" className="text-brass underline">Prøv demo (ingen data gemmes)</Link></p>
+          {appMode === false && <InstallHint />}
         </div>
       </div>
     </div>

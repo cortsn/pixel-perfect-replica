@@ -1,4 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { detectAppMode } from "@/lib/platform";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { PmsPanel } from "@/components/hotel/pms-panel";
@@ -30,6 +31,10 @@ type Room = { number: string };
 function Staff() {
   const [pin, setPin] = useState<string | null>(null);
   const [input, setInput] = useState("");
+  const navigate = useNavigate();
+
+  // Gæste-appen (installeret PWA / Capacitor) har ingen personaleadgang.
+  useEffect(() => { if (detectAppMode()) navigate({ to: "/", replace: true }); }, [navigate]);
 
   useEffect(() => { setPin(sessionStorage.getItem("hp-staff")); }, []);
 
