@@ -18,6 +18,8 @@ export type Database = {
         Row: {
           access_token: string
           active: boolean
+          breakfast_choice: string | null
+          checked_in_at: string | null
           dinner_choice: string | null
           early_checkin_status: string | null
           early_checkin_time: string | null
@@ -26,6 +28,9 @@ export type Database = {
           guest_name: string
           guests: number
           id: string
+          lunch_choice: string | null
+          notice_at: string | null
+          notice_kind: string | null
           reference: string
           room_number: string
           starts_at: string
@@ -33,6 +38,8 @@ export type Database = {
         Insert: {
           access_token?: string
           active?: boolean
+          breakfast_choice?: string | null
+          checked_in_at?: string | null
           dinner_choice?: string | null
           early_checkin_status?: string | null
           early_checkin_time?: string | null
@@ -41,6 +48,9 @@ export type Database = {
           guest_name: string
           guests?: number
           id?: string
+          lunch_choice?: string | null
+          notice_at?: string | null
+          notice_kind?: string | null
           reference: string
           room_number: string
           starts_at?: string
@@ -48,6 +58,8 @@ export type Database = {
         Update: {
           access_token?: string
           active?: boolean
+          breakfast_choice?: string | null
+          checked_in_at?: string | null
           dinner_choice?: string | null
           early_checkin_status?: string | null
           early_checkin_time?: string | null
@@ -56,6 +68,9 @@ export type Database = {
           guest_name?: string
           guests?: number
           id?: string
+          lunch_choice?: string | null
+          notice_at?: string | null
+          notice_kind?: string | null
           reference?: string
           room_number?: string
           starts_at?: string
@@ -80,6 +95,7 @@ export type Database = {
           is_repeat: boolean
           room_number: string
           status: string
+          towel_count: number
           updated_at: string
           wants_towels: boolean
         }
@@ -92,6 +108,7 @@ export type Database = {
           is_repeat?: boolean
           room_number: string
           status?: string
+          towel_count?: number
           updated_at?: string
           wants_towels?: boolean
         }
@@ -104,6 +121,7 @@ export type Database = {
           is_repeat?: boolean
           room_number?: string
           status?: string
+          towel_count?: number
           updated_at?: string
           wants_towels?: boolean
         }
@@ -338,6 +356,10 @@ export type Database = {
         Args: { _device: string; _order: string; _token: string }
         Returns: undefined
       }
+      guest_check_in: {
+        Args: { _device: string; _token: string }
+        Returns: Json
+      }
       guest_dinner: {
         Args: { _choice: string; _device: string; _token: string }
         Returns: undefined
@@ -361,8 +383,17 @@ export type Database = {
       }
       guest_join: { Args: { _token: string }; Returns: Json }
       guest_login: {
-        Args: { _reference: string; _room: string }
+        Args: { _name: string; _reference: string }
         Returns: Json
+      }
+      guest_meal: {
+        Args: {
+          _choice: string
+          _device: string
+          _meal: string
+          _token: string
+        }
+        Returns: undefined
       }
       guest_order: {
         Args: {
@@ -378,8 +409,31 @@ export type Database = {
         Returns: string
       }
       guest_orders: { Args: { _device: string; _token: string }; Returns: Json }
+      guest_rate_stay: {
+        Args: {
+          _comment: string
+          _device: string
+          _rating: number
+          _token: string
+        }
+        Returns: undefined
+      }
+      guest_rating_state: {
+        Args: { _device: string; _token: string }
+        Returns: Json
+      }
       guest_request_cleaning: {
         Args: { _device: string; _token: string; _towels: boolean }
+        Returns: string
+      }
+      guest_request_cleaning_towels: {
+        Args: {
+          _device: string
+          _from: string
+          _token: string
+          _towel_count: number
+          _until: string
+        }
         Returns: string
       }
       guest_request_cleaning_window: {
@@ -417,6 +471,8 @@ export type Database = {
         Returns: {
           access_token: string
           active: boolean
+          breakfast_choice: string | null
+          checked_in_at: string | null
           dinner_choice: string | null
           early_checkin_status: string | null
           early_checkin_time: string | null
@@ -425,6 +481,9 @@ export type Database = {
           guest_name: string
           guests: number
           id: string
+          lunch_choice: string | null
+          notice_at: string | null
+          notice_kind: string | null
           reference: string
           room_number: string
           starts_at: string
@@ -467,6 +526,11 @@ export type Database = {
         Args: { _pin: string; _room: string; _status: string }
         Returns: undefined
       }
+      staff_set_stay: {
+        Args: { _booking: string; _ends: string; _pin: string; _starts: string }
+        Returns: undefined
+      }
+      staff_stays: { Args: { _pin: string }; Returns: Json }
       towels_used: { Args: { _b: string }; Returns: number }
     }
     Enums: {
