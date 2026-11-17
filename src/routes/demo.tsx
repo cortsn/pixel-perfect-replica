@@ -1,10 +1,13 @@
 import { Logo } from "@/components/hotel/logo";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { QRCodeSVG } from "qrcode.react";
-import { Check, KeyRound, Minus, Plus, ShoppingBasket, Share2, Sparkles, Star, Utensils, Wifi } from "lucide-react";
+import { Check, ChevronDown, KeyRound, Minus, Plus, ShoppingBasket, Share2, Sparkles, Star, Utensils, Wifi } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { shareLink } from "@/lib/share";
+import { TOWEL_COOLDOWN_MS, hm } from "@/lib/stay";
 import { OrdersBoard, type BoardOrder } from "@/components/hotel/orders-board";
 import { nextOrderStatus, ORDER_LABELS, type Meal } from "@/lib/hotel";
 import { mealStats, purchaseSuggestions } from "@/lib/ops";
@@ -81,16 +84,27 @@ function Demo() {
   const [now, setNow] = useState(() => Date.now());
   const [meals, setMeals] = useState<Record<Meal, "hotel" | "out" | null>>({ breakfast: null, lunch: null, dinner: null });
   const [ratings, setRatings] = useState([{ room: "201", rating: 5, comment: "Dejligt ophold, nem service." }, { room: "302", rating: 4, comment: "Lidt ventetid på room service." }]);
+  // Måltidsvalg nulstilles hver nat kl. 00.
+  const day = new Date(now).toDateString();
+  const lastDay = useRef(day);
+  useEffect(() => { if (lastDay.current !== day) { lastDay.current = day; setMeals({ breakfast: null, lunch: null, dinner: null }); } }, [day]);
   useEffect(() => { setStays(sampleStays()); setCleaning(sampleCleaning()); const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
   const st: DemoState = { stays, setStays, cleaning, setCleaning, now, meals, setMeals, ratings, setRatings };
   return (
     <div className="min-h-screen">
-      <div className="bg-brass px-4 py-2 text-center text-sm font-semibold text-accent-foreground">
+      <div className="bg-brass px-4 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] text-center text-sm font-semibold text-accent-foreground">
         DEMO — eksempeldata. Intet gemmes, og alt nulstilles, når du genindlæser siden.
       </div>
       <nav className="flex flex-wrap items-center justify-center gap-2 border-b p-3">
-        <Button variant={view === "staff" ? "default" : "outline"} onClick={() => setView("staff")}>Personale</Button>
-        <Button variant={view === "guest" ? "default" : "outline"} onClick={() => setView("guest")}>Gæst</Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1" aria-label="Skift visning">{view === "staff" ? "Personale" : "Gæst"}<ChevronDown className="h-4 w-4" /></Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem onSelect={() => setView("guest")}>{view === "guest" && <Check className="h-4 w-4" />}Gæst</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setView("staff")}>{view === "staff" && <Check className="h-4 w-4" />}Personale</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button variant="ghost" size="sm" onClick={() => setStays(l => l.map(x => x.id === "mine" ? { ...x, ends_at: new Date().toISOString(), checked_in_at: x.checked_in_at ?? new Date().toISOString() } : x))}>Afslut gæstens ophold (demo)</Button>
         <Link to="/" className="ml-2 text-sm text-muted-foreground underline">Til forsiden</Link>
       </nav>
@@ -111,7 +125,7 @@ function StaffDemo({ st }: { st: DemoState }) {
   ]);
   return (
     <div>
-      <nav aria-label="Sektioner" className="sticky top-0 z-40 flex gap-1 overflow-x-auto bg-forest px-4 py-2 text-sm text-forest-foreground shadow-md lg:px-8">
+      <nav aria-label="Sektioner" className="sticky top-0 z-40 flex gap-1 overflow-x-auto bg-forest px-4 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] text-sm text-forest-foreground shadow-md lg:px-8">
         {[["#overblik", "Overblik"], ["#foresp", "Rengøring"], ["#ordrer", "Ordrer"], ["#ophold", "Ophold"]].map(([h, l]) => <a key={h} href={h} className="whitespace-nowrap rounded-full px-3 py-1.5 text-forest-foreground/75 hover:bg-forest-foreground/10 hover:text-forest-foreground">{l}</a>)}
       </nav>
       <section id="overblik" className="grid gap-4 border-b px-6 py-6 md:grid-cols-3 lg:px-8">
@@ -153,6 +167,8 @@ function GuestDemo({ st }: { st: DemoState }) {
   const guests = 2;
   const me = st.stays.find(x => x.id === "mine");
   const [qty, setQty] = useState(1);
+  const [towelAt, setTowelAt] = useState<number | null>(null);
+  const towelWait = towelAt && towelAt + TOWEL_COOLDOWN_MS > st.now ? towelAt + TOWEL_COOLDOWN_MS : null;
   const [sheet, setSheet] = useState<"clean" | "meals" | "share" | "rooms" | null>(null);
   const [rated, setRated] = useState(false);
   const [seen, setSeen] = useState(0);
@@ -173,8 +189,8 @@ function GuestDemo({ st }: { st: DemoState }) {
   if (st.now < Date.parse(me.starts_at)) return <WaitingScreen name="Anna" startsAt={me.starts_at} clock={st.now} notice={notice} onLogout={resetTimes} />;
   if (!me.checked_in_at) return <CheckInScreen name="Anna" room="101" notice={notice} onLogout={resetTimes} onCheckIn={() => { st.setStays(l => l.map(x => x.id === "mine" ? { ...x, checked_in_at: new Date().toISOString() } : x)); toast("Du er tjekket ind. Velkommen!"); }} />;
   return (
-    <div className="mx-auto max-w-md space-y-4 px-4 pb-28">
-      <header className="-mx-4 rounded-b-3xl bg-gradient-forest px-6 pb-8 pt-7 text-forest-foreground">
+    <div className="mx-auto max-w-md space-y-4 px-4 pb-[calc(env(safe-area-inset-bottom)+7rem)]">
+      <header className="-mx-4 rounded-b-3xl bg-gradient-forest px-6 pb-8 pt-[calc(env(safe-area-inset-top)+1.75rem)] text-forest-foreground">
         <Logo />
         <p className="eyebrow mt-7 text-brass">Værelse 101</p>
         <h1 className="mt-2 text-4xl">Velkommen, Anna</h1>
@@ -196,8 +212,9 @@ function GuestDemo({ st }: { st: DemoState }) {
             <span className="w-6 text-center text-xl font-semibold tabular-nums">{q}</span>
             <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" aria-label="Flere" disabled={q >= guests} onClick={() => setQty(q + 1)}><Plus /></Button>
           </div>
-          <Button onClick={() => { setQty(1); toast("Demo: bestilling ikke gemt"); }}>Bestil</Button>
+          <Button disabled={!!towelWait} onClick={() => { setQty(1); setTowelAt(Date.now()); toast("Demo: bestilling ikke gemt"); }}>Bestil</Button>
         </div>
+        {towelWait && <p role="status" className="mt-3 rounded-md bg-secondary p-3 text-sm">Du kan bestille håndklæder igen kl. {hm(new Date(towelWait).toISOString())} (1 gang hver 12. time).</p>}
       </section>
       <section id="rengoering" className={card}>
         <h2 className="flex items-center gap-2 text-2xl"><Sparkles className="h-5 w-5 text-brass" />Rengøring</h2>
@@ -207,7 +224,7 @@ function GuestDemo({ st }: { st: DemoState }) {
       </section>
       <section id="roomservice" className={card}>
         <h2 className="flex items-center gap-2 text-2xl"><Utensils className="h-5 w-5 text-brass" />Room service</h2>
-        <div className="mt-3 space-y-3"><RoomService room="101" onSubmit={(d) => toast(`Demo: ${d} — ikke sendt til køkkenet`)} /></div>
+        <div className="mt-3 space-y-3"><RoomService room="101" onSubmit={(d) => { toast(`Demo: ${d} — ikke sendt til køkkenet`); }} /></div>
       </section>
       <div className="grid grid-cols-2 gap-2">
         <Button variant="outline" onClick={() => setSheet("share")}><Share2 />Del adgang</Button>
@@ -218,20 +235,20 @@ function GuestDemo({ st }: { st: DemoState }) {
         <p className="mt-2 text-sm opacity-80">Netværk og kode vises her, når du er logget ind som rigtig gæst.</p>
       </section>
       <StayEndTimer endsAt={me.ends_at} clock={st.now} />
-      <nav aria-label="Genveje" className="fixed inset-x-0 bottom-0 z-40 border-t bg-card/95 backdrop-blur">
+      <nav aria-label="Genveje" className="fixed inset-x-0 bottom-0 z-40 border-t bg-card/95 pb-[max(env(safe-area-inset-bottom),0.5rem)] backdrop-blur">
         <ul className="mx-auto grid max-w-md grid-cols-4 px-2">
           {([["#noegle", "Nøgle", KeyRound], ["#service", "Håndklæder", Sparkles], ["#rengoering", "Rengøring", Sparkles], ["#roomservice", "Mad", Utensils]] as const).map(([h, l, I]) => (
             <li key={h}><a href={h} className="flex flex-col items-center gap-1 py-2.5 text-xs font-medium text-muted-foreground hover:text-primary"><I className="h-5 w-5" />{l}</a></li>
           ))}
         </ul>
       </nav>
-      {sheet === "meals" && <HotelModal title="Måltider" onClose={() => setSheet(null)}>
+      {sheet === "meals" && <HotelModal title="Vælg måltider" onClose={() => setSheet(null)}>
         <MealsForm choices={{ breakfast_choice: st.meals.breakfast, lunch_choice: st.meals.lunch, dinner_choice: st.meals.dinner }} onChoose={(m, c) => st.setMeals(l => ({ ...l, [m]: l[m] === c ? null : c }))} />
       </HotelModal>}
       {sheet === "share" && <HotelModal title="Del adgang" onClose={() => setSheet(null)}>
-        <p className="text-sm">Scan koden eller send linket. Der er plads til {guests + 2} enheder ({guests} personer + 2 ekstra).</p>
+        <p className="text-sm">Scan koden eller del linket. Der er plads til {guests + 2} enheder ({guests} personer + 2 ekstra).</p>
         <div className="flex justify-center rounded-lg bg-secondary p-5"><QRCodeSVG value="https://hotelpilot.example/gaest?t=demo" size={180} bgColor="transparent" fgColor="currentColor" /></div>
-        <Button asChild variant="outline"><a href={`sms:?&body=${encodeURIComponent("Her er adgang til værelse 101 på HotelPilot: https://hotelpilot.example/gaest?t=demo")}`}>Send som sms</a></Button>
+        <Button variant="outline" onClick={async () => { const r = await shareLink({ title: "HotelPilot", text: "Her er adgang til værelse 101 på HotelPilot:", url: "https://hotelpilot.example/gaest?t=demo" }); if (r === "copied") toast.success("Link kopieret"); else if (r === "failed") toast.error("Linket kunne ikke deles"); }}><Share2 />Del link</Button>
       </HotelModal>}
       {sheet === "rooms" && <HotelModal title="Mine værelser" onClose={() => setSheet(null)}>
         <RoomSwitcher rooms={[{ t: "a", d: "a", room: "101", name: "Anna Nielsen" }, { t: "b", d: "b", room: "102", name: "Anna Nielsen" }]} active="a" onOpen={() => toast("Demo: her skifter appen til værelse 102 med dets eget kontrolsystem")} onAdd={() => toast("Demo: her logger du ind med endnu et bookingnummer")} />

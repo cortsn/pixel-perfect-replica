@@ -10,24 +10,27 @@ export function mealSummary(c: Choices) {
   return MEALS.map(m => ({ meal: m, label: MEAL_LABELS[m], choice: c[MEAL_FIELD[m]] }));
 }
 
-/** Kort på forsiden: kort oversigt over valgene og en knap, der åbner menuen. */
+/** Kort på forsiden: kun "Vælg måltider". Valgte måltider dukker op over knappen. */
 export function MealsCard({ choices, onOpen }: { choices: Choices; onOpen: () => void }) {
+  const chosen = mealSummary(choices).filter(m => m.choice);
   return (
     <section id="maaltider" className="rounded-2xl border bg-card p-5 shadow-sm">
       <div className="flex items-start gap-3">
         <Leaf className="mt-1 h-5 w-5 shrink-0 text-primary" />
         <div>
-          <h2 className="text-xl">Spiser du på hotellet?</h2>
+          <h2 className="text-xl">Vælg måltider</h2>
           <p className="mt-1 text-sm text-muted-foreground">{MADSPILD_NOTE}</p>
         </div>
       </div>
-      <ul className="mt-4 flex flex-wrap gap-2 text-xs">
-        {mealSummary(choices).map(m => (
-          <li key={m.meal} className={`rounded-full border px-3 py-1 ${m.choice === 'hotel' ? 'border-primary/40 bg-primary/10 font-semibold text-primary' : ''}`}>
-            {m.label}: {m.choice === 'hotel' ? 'på hotellet' : m.choice === 'out' ? 'ude' : 'ikke svaret'}
-          </li>
-        ))}
-      </ul>
+      {chosen.length > 0 && (
+        <ul className="mt-4 flex flex-wrap gap-2 text-xs" aria-label="Dine valgte måltider">
+          {chosen.map(m => (
+            <li key={m.meal} className={`rounded-full border px-3 py-1 ${m.choice === 'hotel' ? 'border-primary/40 bg-primary/10 font-semibold text-primary' : ''}`}>
+              {m.label}: {m.choice === 'hotel' ? 'på hotellet' : 'ude'}
+            </li>
+          ))}
+        </ul>
+      )}
       <Button className="mt-4 w-full" variant="outline" onClick={onOpen}>Vælg måltider</Button>
     </section>
   );

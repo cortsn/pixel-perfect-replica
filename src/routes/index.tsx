@@ -47,7 +47,7 @@ function Login() {
     <div className="relative min-h-screen bg-forest text-forest-foreground">
       <img src={hero} alt="Hotellets lounge" width={1024} height={1536} className="absolute inset-0 h-full w-full object-cover opacity-55" />
       <div className="absolute inset-0 bg-gradient-to-t from-forest via-forest/70 to-transparent" />
-      <div className="relative mx-auto flex min-h-screen max-w-md flex-col justify-between px-6 py-10">
+      <div className="relative mx-auto flex min-h-screen max-w-md flex-col justify-between px-6 pb-[calc(env(safe-area-inset-bottom)+2.5rem)] pt-[calc(env(safe-area-inset-top)+2.5rem)]">
         <div className="flex items-center justify-between">
           <Logo />
           {appMode === false && <Link to="/personale" className="eyebrow text-brass">Personale</Link>}

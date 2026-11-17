@@ -27,7 +27,7 @@ function Stepper({ n, name, onChange }: { n: number; name: string; onChange: (n:
   );
 }
 
-export function RoomService({ room, busy, onSubmit }: { room: string; busy?: boolean; onSubmit: (details: string) => void }) {
+export function RoomService({ room, busy, onSubmit }: { room: string; busy?: boolean; onSubmit: (details: string) => void | boolean | Promise<void | boolean> }) {
   const [cat, setCat] = useState(CATS[0] ?? '');
   const [cart, setCart] = useState<Record<string, number>>({});
   const [note, setNote] = useState('');
@@ -46,7 +46,7 @@ export function RoomService({ room, busy, onSubmit }: { room: string; busy?: boo
         <label className="block text-sm">Note til køkkenet (valgfri)<textarea value={note} onChange={e => setNote(e.target.value.slice(0, 200))} rows={2} placeholder="fx uden løg" className="mt-1 w-full rounded-md border bg-card p-2" /></label>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setStep('menu')}>Tilføj mere</Button>
-          <Button className="h-12 flex-1" disabled={busy || count === 0} onClick={() => onSubmit(orderText(cart, note))}>Bekræft bestilling</Button>
+          <Button className="h-12 flex-1" disabled={busy || count === 0} onClick={async () => { const ok = await onSubmit(orderText(cart, note)); if (ok === false) return; setCart({}); setNote(''); setCat(CATS[0] ?? ''); setStep('menu'); }}>Bekræft bestilling</Button>
         </div>
       </>
     );

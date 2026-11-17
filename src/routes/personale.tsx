@@ -91,7 +91,7 @@ function Dashboard({ pin, onLogout }: { pin: string; onLogout: () => void }) {
   }
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-40 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 bg-forest px-4 py-3 text-forest-foreground shadow-md lg:px-8">
+      <header className="sticky top-0 z-40 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 bg-forest px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] text-forest-foreground shadow-md lg:px-8">
         <div className="flex items-baseline gap-4">
           <span className="font-display text-2xl">HotelPilot</span>
           <span className="eyebrow text-brass">Personale</span>

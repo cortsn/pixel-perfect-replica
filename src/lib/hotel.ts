@@ -109,6 +109,7 @@ export function errorText(e: { message?: string } | null) {
   if (m.includes("NOT_CHECKED_IN")) return "Tjek ind først, så virker nøglen.";
   if (m.includes("BOOKING_NOT_FOUND")) return "Opholdet findes ikke længere.";
   if (m.includes("INVALID_STAY")) return "Sluttidspunktet skal være efter starttidspunktet.";
+  if (m.includes("TOWEL_COOLDOWN")) return "Du kan bestille håndklæder 1 gang hver 12. time.";
   if (m.includes("TOWEL_LIMIT")) return "Du kan højst bytte lige så mange håndklæder, som der er personer på værelset.";
   if (m.includes("STAY_NOT_ENDED")) return "Du kan give en rating, når dit ophold er slut.";
   if (m.includes("ALREADY_RATED")) return "Tak, du har allerede givet en rating.";

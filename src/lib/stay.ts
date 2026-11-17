@@ -25,3 +25,11 @@ export function noticeText(kind: 'start' | 'end' | 'both', startsAt: string, end
   const end = `Hotellet har ændret din check ud-tid til ${dayTime(endsAt)}.`;
   return kind === 'start' ? start : kind === 'end' ? end : `${start} ${end}`;
 }
+/** Håndklæder kan bestilles 1 gang hver 12. time. */
+export const TOWEL_COOLDOWN_MS = 12 * 60 * 60 * 1000;
+/** Tidspunkt (ms) hvor næste håndklædebestilling er mulig, eller null hvis den er mulig nu. Annullerede bestillinger tæller ikke. */
+export function towelNextAt(orders: { type: string; status: string; created_at: string }[], now: number): number | null {
+  const last = orders.filter(o => o.type === 'towels' && o.status !== 'cancelled').reduce((a, o) => Math.max(a, Date.parse(o.created_at)), 0);
+  const next = last + TOWEL_COOLDOWN_MS;
+  return last > 0 && next > now ? next : null;
+}
