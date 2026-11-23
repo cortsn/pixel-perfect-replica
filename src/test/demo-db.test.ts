@@ -62,6 +62,28 @@ describe('demo-database: samme regler som SQL', () => {
     expect(demoGuest.bill().total_cents).toBe(2 * 9500);
   });
 
+  it('rengøring: kun 1 gang hver 12. time, men "ikke nået" kan bestilles igen', async () => {
+    demoGuest.checkIn();
+    demoGuest.requestCleaning(0, null, null);
+    expect(() => demoGuest.requestCleaning(0, null, null)).toThrow('CLEANING_ALREADY_REQUESTED');
+    const task = (await call('staff_cleaning')).requests.find((r: { room_number: string; status: string }) => r.room_number === '101' && r.status === 'requested');
+    await call('staff_set_cleaning', { _request: task.id, _status: 'done' });
+    expect(() => demoGuest.requestCleaning(0, null, null)).toThrow('CLEANING_COOLDOWN');
+    const again = demoStore._state().cleaning.find(c => c.id === task.id)!;
+    again.status = 'not_reached';
+    expect(() => demoGuest.requestCleaning(0, null, null)).not.toThrow();
+  });
+
+  it('overskredne ophold bliver på listen og kan tjekkes ud', async () => {
+    const b = demoStore._state().bookings.find(x => x.room_number === '203')!;
+    b.ends_at = new Date(Date.now() - 2 * 3600e3).toISOString();
+    expect((await call('staff_guests')).find((g: { id: string }) => g.id === b.id)).toMatchObject({ overdue: true, in_house: false });
+    expect((await call('staff_rooms')).find((r: { number: string }) => r.number === '203').overdue_booking_id).toBe(b.id);
+    expect((await call('staff_dashboard')).departures.some((d: { id: string }) => d.id === b.id)).toBe(true);
+    await call('staff_checkout', { _booking: b.id, _method: 'Kontant', _note: '' });
+    expect((await call('staff_guests')).some((g: { id: string }) => g.id === b.id)).toBe(false);
+  });
+
   it('håndklæder: højst antal personer og kun 1 gang hver 12. time', async () => {
     expect(() => demoGuest.orderTowels(3)).toThrow('TOWEL_LIMIT');
     demoGuest.orderTowels(2);
@@ -138,7 +160,10 @@ describe('demo-database: samme regler som SQL', () => {
     expect(d.rooms_total).toBe(12);
     expect(rooms.filter((r: { guest_name: string | null }) => r.guest_name).length).toBe(d.occupied);
     expect(d.free).toBe(12 - d.occupied);
-    expect(d.open_tasks).toBe((await call('staff_cleaning')).requests.filter((r: { status: string }) => ['requested', 'in_progress'].includes(r.status)).length);
+    const towelTasks = (await call('staff_orders')).filter((o: { type: string; status: string }) => o.type === 'towels' && ['pending', 'accepted', 'in_progress', 'ready'].includes(o.status)).length;
+    expect(d.open_tasks).toBe((await call('staff_cleaning')).requests.filter((r: { status: string }) => ['requested', 'in_progress'].includes(r.status)).length + towelTasks);
+    // håndklæde-bytte er en opgave, ikke en roomservice-ordre
+    expect(d.new_orders).toBe((await call('staff_orders')).filter((o: { type: string; status: string }) => o.type === 'room_service' && o.status === 'pending').length);
   });
 
   it('medarbejdere: unik kode og gyldig rolle', async () => {

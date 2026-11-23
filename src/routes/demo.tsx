@@ -22,7 +22,7 @@ import { categoryLabel } from "@/lib/billing";
 import { errorText, HOUSEKEEPING_LABELS, MEAL_FIELD, type Meal, type OrderStatus } from "@/lib/hotel";
 import { fmtDKK } from "@/lib/money";
 import { shareLink } from "@/lib/share";
-import { cancellable, hm, towelNextAt } from "@/lib/stay";
+import { cancellable, cleaningNextAt, hm, towelNextAt } from "@/lib/stay";
 
 export const Route = createFileRoute("/demo")({
   head: () => ({
@@ -120,6 +120,7 @@ function GuestDemo() {
   const cleaning = demoGuest.cleaning() as CleaningRequest | null;
   const cleaningOpen = !!cleaning && ["requested", "in_progress"].includes(cleaning.status);
   const towelNext = towelNextAt(orders, now);
+  const cleaningNext = cleaningNextAt(cleaning, now);
   const activeOrders = orders.filter((o) => cancellable(o.status)).length;
   const meals = { breakfast_choice: b.breakfast_choice, lunch_choice: b.lunch_choice, dinner_choice: b.dinner_choice };
   const mealsChosen = Object.values(meals).filter(Boolean).length;
@@ -173,7 +174,9 @@ function GuestDemo() {
         {sheet === "food" && <PageCard><RoomService room={b.room_number} menu={menu} onSubmit={(lines, note) => { try { demoGuest.orderMenu(lines, note); toast.success("Din bestilling er modtaget og lægges på din regning"); close(); return true; } catch (e) { toast.error(errorText(e as Error)); return false; } }} /></PageCard>}
         {sheet === "clean" && <>
           <PageCard><p className="text-sm text-muted-foreground">{HOUSEKEEPING_LABELS[room.housekeeping_status]}</p><CleaningStatusNote req={cleaning} />{!cleaning && <p className="text-sm text-muted-foreground">Vælg om du vil have rengøring, og hvornår det passer.</p>}</PageCard>
-          {!cleaningOpen && <PageCard><CleaningForm room={b.room_number} guests={guests} onSubmit={(towels, from, until) => run(() => { demoGuest.requestCleaning(towels, from, until); toast.success("Personalet er underrettet."); })} /></PageCard>}
+          {!cleaningOpen && (cleaningNext
+            ? <PageCard><p role="status" className="rounded-md bg-secondary p-3 text-sm">Du har allerede bestilt rengøring. Du kan bestille igen kl. {hm(new Date(cleaningNext).toISOString())} (rengøring kan bestilles 1 gang hver 12. time). Er rengøringen ikke nået, kan du bestille igen med det samme.</p></PageCard>
+            : <PageCard><CleaningForm room={b.room_number} guests={guests} onSubmit={(towels, from, until) => run(() => { demoGuest.requestCleaning(towels, from, until); toast.success("Personalet er underrettet."); })} /></PageCard>)}
         </>}
         {sheet === "orders" && <PageCard><ul className="divide-y">{orders.map((o) => (
           <li key={o.id} className="py-3 first:pt-0 last:pb-0">

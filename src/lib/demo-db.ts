@@ -161,23 +161,24 @@ const H: Record<string, (a: Dict) => unknown> = {
     const open = new Set(S.bookings.filter(b => b.active && !b.checked_out_at).map(b => b.id));
     return {
       arrivals: S.bookings.filter(b => b.active && !b.checked_out_at && dayKey(ts(b.starts_at)) === today).sort((a, c) => ts(a.starts_at) - ts(c.starts_at)).map(b => ({ id: b.id, room_number: b.room_number, guest_name: b.guest_name, guests: b.guests, starts_at: b.starts_at, checked_in_at: b.checked_in_at })),
-      departures: S.bookings.filter(b => b.active && ts(b.starts_at) <= now && dayKey(ts(b.ends_at)) === today && (!b.checked_out_at || dayKey(ts(b.checked_out_at)) === today)).sort((a, c) => ts(a.ends_at) - ts(c.ends_at)).map(b => ({ id: b.id, room_number: b.room_number, guest_name: b.guest_name, guests: b.guests, ends_at: b.ends_at, checked_out_at: b.checked_out_at })),
+      departures: S.bookings.filter(b => b.active && ts(b.starts_at) <= now && ((!b.checked_out_at && dayKey(ts(b.ends_at)) <= today && ts(b.ends_at) > now - 7 * 86400000) || (b.checked_out_at && dayKey(ts(b.checked_out_at)) === today))).sort((a, c) => ts(a.ends_at) - ts(c.ends_at)).map(b => ({ id: b.id, room_number: b.room_number, guest_name: b.guest_name, guests: b.guests, ends_at: b.ends_at, checked_out_at: b.checked_out_at })),
       rooms_total: S.rooms.length, occupied: new Set(cur.map(b => b.room_number)).size, free: Math.max(S.rooms.length - new Set(cur.map(b => b.room_number)).size, 0),
       rooms_to_clean: S.rooms.filter(r => ['needs_cleaning', 'cleaning'].includes(r.housekeeping_status)).length,
-      open_tasks: S.cleaning.filter(c => ['requested', 'in_progress'].includes(c.status)).length,
-      new_orders: S.orders.filter(o => o.status === 'pending' && !o.cancelled).length,
-      open_orders: S.orders.filter(o => openOrderStatuses.includes(o.status) && !o.cancelled).length,
+      open_tasks: S.cleaning.filter(c => ['requested', 'in_progress'].includes(c.status)).length + S.orders.filter(o => o.type === 'towels' && !o.cancelled && openOrderStatuses.includes(o.status)).length,
+      new_orders: S.orders.filter(o => o.type === 'room_service' && o.status === 'pending' && !o.cancelled).length,
+      open_orders: S.orders.filter(o => o.type === 'room_service' && openOrderStatuses.includes(o.status) && !o.cancelled).length,
       revenue_today_cents: sum(live.filter(i => dayKey(ts(i.created_at)) === today)),
       unsettled_cents: sum(live.filter(i => !i.paid && open.has(i.booking_id))),
     };
   },
 
-  staff_guests: () => S.bookings.filter(b => b.active && !b.checked_out_at && ts(b.ends_at) > Date.now()).sort((a, c) => ts(a.starts_at) - ts(c.starts_at))
-    .map(b => ({ id: b.id, reference: b.reference, room_number: b.room_number, guest_name: b.guest_name, guest_email: b.guest_email, guests: b.guests, starts_at: b.starts_at, ends_at: b.ends_at, checked_in_at: b.checked_in_at, balance_cents: sum(liveItems(b.id)), in_house: ts(b.starts_at) <= Date.now() && ts(b.ends_at) > Date.now() })),
+  staff_guests: () => S.bookings.filter(b => b.active && !b.checked_out_at && ts(b.ends_at) > Date.now() - 7 * 86400000).sort((a, c) => ts(a.starts_at) - ts(c.starts_at))
+    .map(b => ({ id: b.id, reference: b.reference, room_number: b.room_number, guest_name: b.guest_name, guest_email: b.guest_email, guests: b.guests, starts_at: b.starts_at, ends_at: b.ends_at, checked_in_at: b.checked_in_at, balance_cents: sum(liveItems(b.id)), in_house: ts(b.starts_at) <= Date.now() && ts(b.ends_at) > Date.now(), overdue: ts(b.starts_at) <= Date.now() && ts(b.ends_at) <= Date.now() })),
 
   staff_rooms: () => S.rooms.map(r => {
     const b = S.bookings.find(x => x.room_number === r.number && isCurrent(x));
-    return { ...r, guest_name: b?.guest_name ?? null, booking_id: b?.id ?? null, ends_at: b?.ends_at ?? null };
+    const ov = S.bookings.find(x => x.room_number === r.number && x.active && !x.checked_out_at && ts(x.starts_at) <= Date.now() && ts(x.ends_at) <= Date.now() && ts(x.ends_at) > Date.now() - 7 * 86400000);
+    return { ...r, guest_name: b?.guest_name ?? null, booking_id: b?.id ?? null, ends_at: b?.ends_at ?? null, guests: b?.guests ?? null, reference: b?.reference ?? null, overdue_booking_id: ov?.id ?? null, overdue_guest: ov?.guest_name ?? null };
   }),
   staff_set_room_status: a => { const r = S.rooms.find(x => x.number === a['_room']) ?? err('ROOM_NOT_FOUND'); if (!['occupied', 'needs_cleaning', 'cleaning', 'clean'].includes(String(a['_status']))) err('INVALID_STATUS'); r.housekeeping_status = a['_status'] as DemoRoom['housekeeping_status']; return null; },
   staff_room_rate_set: a => { const c = Number(a['_cents']); if (!Number.isInteger(c) || c < 0) err('INVALID_PRICE'); (S.rooms.find(x => x.number === a['_room']) ?? err('ROOM_NOT_FOUND')).rate_cents = c; return null; },
@@ -430,6 +431,7 @@ export const demoGuest = {
   requestCleaning(towels: number, from: Date | null, until: Date | null) {
     const b = demoGuest.booking();
     if (S.cleaning.some(c => c.booking_id === b.id && ['requested', 'in_progress'].includes(c.status))) err('CLEANING_ALREADY_REQUESTED');
+    if (S.cleaning.some(c => c.booking_id === b.id && c.kind === 'guest' && c.status !== 'not_reached' && ts(c.created_at) > Date.now() - 12 * 3600e3)) err('CLEANING_COOLDOWN');
     const repeat = S.cleaning.some(c => c.booking_id === b.id && c.status === 'not_reached'), now = iso(Date.now());
     S.cleaning.push({ id: uid('c'), booking_id: b.id, room_number: b.room_number, wants_towels: towels > 0, towel_count: towels, away_from: from ? from.toISOString() : null, away_until: until ? until.toISOString() : null, status: 'requested', is_repeat: repeat, kind: 'guest', created_at: now, updated_at: now });
     S.rooms.find(r => r.number === b.room_number)!.housekeeping_status = 'needs_cleaning'; emit();

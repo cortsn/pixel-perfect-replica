@@ -135,6 +135,7 @@ export function errorText(e: { message?: string } | null) {
   if (m.includes("INVALID_HOURS")) return "Udfyld både fra- og til-tidspunkt, eller ingen af dem.";
   if (m.includes("INVALID_WIFI")) return "Wi-Fi skal have et navn og en kode på mindst 8 tegn.";
   if (m.includes("FORBIDDEN")) return "Ingen adgang. Log ind igen.";
+  if (m.includes("CLEANING_COOLDOWN")) return "Rengøring kan bestilles 1 gang hver 12. time.";
   if (m.includes("TOWEL_COOLDOWN")) return "Du kan bestille håndklæder 1 gang hver 12. time.";
   if (m.includes("TOWEL_LIMIT")) return "Du kan højst bytte lige så mange håndklæder, som der er personer på værelset.";
   if (m.includes("STAY_NOT_ENDED")) return "Du kan give en rating, når dit ophold er slut.";

@@ -47,7 +47,7 @@ function Sidebar({ section, dash, me, onPick, onLogout }: { section: Section; da
       <div className="mt-3 border-t border-forest-foreground/15 px-3 pt-3">
         {me && <p className="text-sm font-semibold">{me.name}</p>}
         {me && <p className="text-xs text-forest-foreground/60">{ROLE_LABELS[me.role]}</p>}
-        <Button onClick={onLogout} variant="ghost" size="sm" className="-ml-3 mt-1 text-forest-foreground/75 hover:text-forest-foreground"><LogOut />Log ud</Button>
+        <Button onClick={onLogout} variant="ghost" size="sm" className="-ml-3 mt-1 text-forest-foreground/75 hover:bg-forest-foreground/10 hover:text-forest-foreground"><LogOut />Log ud</Button>
       </div>
     </div>
   );

@@ -35,13 +35,13 @@ export function CleaningForm({ room, guests, busy, onSubmit }: { room: string; g
     <div className="space-y-5 text-center">
       <p className="text-muted-foreground">Rengøring af værelse {room}</p>
       <div>
-        <p className="mb-2 flex items-center justify-center gap-2 font-semibold"><Sparkles className="h-4 w-4 text-brass" />Skal vi bytte håndklæder?</p>
+        <p className="mb-2 flex items-center justify-center gap-2 font-semibold"><Sparkles className="h-4 w-4 text-brass" />Skal vi bytte poolhåndklæder?</p>
         <div className="flex items-center justify-center gap-4">
           <Button type="button" variant="outline" size="icon" className="h-9 w-9 rounded-full" aria-label="Færre håndklæder" disabled={towels <= 0} onClick={() => setTowels(towels - 1)}><Minus /></Button>
           <span className="min-w-24 text-center"><span className="text-2xl font-semibold tabular-nums">{towels}</span><span className="block text-xs text-muted-foreground">{towels === 0 ? 'ingen byttes' : towels === 1 ? 'håndklæde' : 'håndklæder'}</span></span>
           <Button type="button" variant="outline" size="icon" className="h-9 w-9 rounded-full" aria-label="Flere håndklæder" disabled={towels >= guests} onClick={() => setTowels(towels + 1)}><Plus /></Button>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">Op til {guests} {guests === 1 ? 'håndklæde' : 'håndklæder'}, lige så mange som personer på værelset.</p>
+        <p className="mt-2 text-xs text-muted-foreground">Det er <b>poolhåndklæderne</b>, der byttes her (op til {guests}, lige så mange som personer på værelset). Læg dem synligt på værelset, så rengøringen kan se dem. Værelsets egne håndklæder byttes under <b>Håndklæder</b> på forsiden.</p>
       </div>
       <div>
         <p className="mb-2 flex items-center justify-center gap-2 font-semibold"><CalendarClock className="h-4 w-4 text-brass" />Hvornår passer det?</p>

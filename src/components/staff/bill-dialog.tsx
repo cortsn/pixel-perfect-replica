@@ -15,9 +15,9 @@ export function BillDialog({ bookingId, onClose, onChanged }: { bookingId: strin
   const act = useAct();
   const [edit, setEdit] = useState<Edit | null>(null);
   const [add, setAdd] = useState({ category: 'service' as BillCategory, description: '', qty: '1', price: '' });
-  const [method, setMethod] = useState('');
+  const [method, setMethod] = useState<string>(PAYMENT_METHODS[0]);
   const [note, setNote] = useState('');
-  const [confirming, setConfirming] = useState(false);
+  const [step, setStep] = useState<'bill' | 'pay'>('bill');
   const [busy, setBusy] = useState(false);
 
   const b = bill?.booking;
@@ -58,15 +58,43 @@ export function BillDialog({ bookingId, onClose, onChanged }: { bookingId: strin
     setBusy(true);
     const r = await act('staff_checkout', { _booking: bookingId, _method: method, _note: note }, 'Gæsten er tjekket ud. Værelset er sat til rengøring.');
     setBusy(false);
-    if (r.ok) { setConfirming(false); await changed(); }
+    if (r.ok) { setStep('bill'); await changed(); }
   }
 
-  const groups = bill ? groupBill(bill.items) : [];
   const needsMethod = (bill?.due_cents ?? 0) > 0;
+  const activeCount = bill?.items.filter(i => !i.voided_at).length ?? 0;
+  const payView = bill && b && (
+    <div className="space-y-5 p-5 text-center sm:p-6">
+      <div>
+        <DialogTitle className="text-2xl">Betaling</DialogTitle>
+        <DialogDescription id="bill-desc" className="mt-1">{b.guest_name} · Værelse {b.room_number} · {b.reference}</DialogDescription>
+      </div>
+      <div className="rounded-2xl bg-secondary px-4 py-6">
+        <p className="text-sm text-muted-foreground">Regning på {activeCount} {activeCount === 1 ? 'post' : 'poster'}</p>
+        <p className="mt-1 font-display text-5xl tabular-nums" data-testid="pay-amount">{fmtDKK(bill.due_cents)}</p>
+        {bill.paid_in_app_cents !== 0 && <p className="mt-1 text-xs text-muted-foreground">Betalt i appen: {fmtDKK(bill.paid_in_app_cents)} (er trukket fra)</p>}
+      </div>
+      {needsMethod && (
+        <div>
+          <p className="mb-2 text-sm font-medium">Betalt via</p>
+          <div className="flex flex-wrap justify-center gap-2" role="radiogroup" aria-label="Betalt via">
+            {PAYMENT_METHODS.map(m => <Button key={m} type="button" size="sm" role="radio" aria-checked={method === m} variant={method === m ? 'default' : 'outline'} onClick={() => setMethod(m)}>{method === m && <Check />}{m}</Button>)}
+          </div>
+        </div>
+      )}
+      <input aria-label="Note til checkout" placeholder="Note (valgfri)" className={field} value={note} onChange={e => setNote(e.target.value)} maxLength={500} />
+      <p className="text-xs text-muted-foreground">Når du trykker Betalt, afsluttes opholdet, regningen gemmes i historikken, værelset sættes til rengøring, og en rengøringsopgave oprettes.</p>
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-center">
+        <Button variant="outline" onClick={() => setStep('bill')}>Tilbage til regningen</Button>
+        <Button className="h-12 min-w-48 text-base" disabled={busy || (needsMethod && !method)} onClick={checkout}><Check />{needsMethod ? `Betalt · ${fmtDKK(bill.due_cents)}` : 'Afslut checkout'}</Button>
+      </div>
+    </div>
+  );
+  const groups = bill ? groupBill(bill.items) : [];
   return (
     <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
       <DialogContent aria-describedby="bill-desc" className="max-h-[92dvh] w-[calc(100%-1.5rem)] max-w-3xl overflow-y-auto rounded-2xl p-0">
-        <div className="space-y-5 p-5 sm:p-6">
+        {step === 'pay' && payView ? payView : <div className="space-y-5 p-5 sm:p-6">
           <div>
             <DialogTitle className="flex items-center gap-2 text-2xl"><Receipt className="h-5 w-5 text-brass" />Regning</DialogTitle>
             <DialogDescription id="bill-desc" className="mt-1">
@@ -137,26 +165,13 @@ export function BillDialog({ bookingId, onClose, onChanged }: { bookingId: strin
           {open && bill && (
             <section className={`${card} space-y-3`}>
               <h3 className="flex items-center gap-2 text-lg"><LogOut className="h-4 w-4 text-brass" />Tjek ud</h3>
-              <p className="text-sm text-muted-foreground">HotelPilot tager ikke imod betaling. Tag betalingen i hotellets eget betalingssystem, og registrér her, hvordan den blev betalt.</p>
-              {needsMethod && (
-                <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Betalt via">
-                  {PAYMENT_METHODS.map(m => <Button key={m} type="button" size="sm" role="radio" aria-checked={method === m} variant={method === m ? 'default' : 'outline'} onClick={() => setMethod(m)}>{method === m && <Check />}{m}</Button>)}
-                </div>
-              )}
-              <input aria-label="Note til checkout" placeholder="Note (valgfri)" className={field} value={note} onChange={e => setNote(e.target.value)} maxLength={500} />
-              {!confirming
-                ? <Button className="w-full sm:w-auto" disabled={needsMethod && !method} onClick={() => setConfirming(true)}>{needsMethod && !method ? 'Vælg betalingsmåde' : 'Gennemgå og tjek ud'}</Button>
-                : (
-                  <div className="space-y-3 rounded-lg border border-brass bg-brass/10 p-3 text-sm">
-                    <p>Tjek <b>{b?.guest_name}</b> ud af værelse {b?.room_number}{needsMethod ? <>. Regningen på <b>{fmtDKK(bill.due_cents)}</b> registreres som betalt via <b>{method}</b></> : ''}. Opholdet afsluttes, regningen gemmes i historikken, værelset sættes til rengøring, og en rengøringsopgave oprettes.</p>
-                    <div className="flex gap-2"><Button disabled={busy} onClick={checkout}>Bekræft checkout</Button><Button variant="outline" onClick={() => setConfirming(false)}>Fortryd</Button></div>
-                  </div>
-                )}
+              <p className="text-sm text-muted-foreground">Gennemgå regningen, og gå derefter til betaling. HotelPilot tager ikke imod betaling: gæsten betaler i hotellets eget betalingssystem, og du registrerer det bagefter.</p>
+              <Button className="w-full sm:w-auto" onClick={() => setStep('pay')}>Gå til betaling · {fmtDKK(bill.due_cents)}</Button>
             </section>
           )}
           {error && !bill && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex justify-end"><Button variant="outline" onClick={onClose}>Luk</Button></div>
-        </div>
+        </div>}
       </DialogContent>
     </Dialog>
   );

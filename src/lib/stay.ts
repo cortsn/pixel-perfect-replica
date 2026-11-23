@@ -33,3 +33,9 @@ export function towelNextAt(orders: { type: string; status: string; created_at: 
   const next = last + TOWEL_COOLDOWN_MS;
   return last > 0 && next > now ? next : null;
 }
+/** Rengøring kan bestilles 1 gang hver 12. time. Er den forrige bestilling "ikke nået", må gæsten bestille igen med det samme. */
+export function cleaningNextAt(req: { status: string; created_at: string; kind?: string } | null, now: number): number | null {
+  if (!req || req.status === 'not_reached' || req.kind === 'checkout') return null;
+  const next = Date.parse(req.created_at) + TOWEL_COOLDOWN_MS;
+  return next > now ? next : null;
+}

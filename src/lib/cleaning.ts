@@ -81,8 +81,9 @@ export function todayAt(hhmm: string, base = new Date()) {
   return d;
 }
 
-/** "Byt 2 håndklæder" / "Ingen håndklædebytte". */
-export function towelText(r: Pick<CleaningRequest, "wants_towels" | "towel_count">) {
+/** Håndklæderne i en rengøringsbestilling er poolhåndklæder. Ved afrejse byttes alle håndklæder. Værelsets egne håndklæder byttes via håndklæde-bytte (opgave). */
+export function towelText(r: Pick<CleaningRequest, "wants_towels" | "towel_count" | "kind">) {
+  if (r.kind === "checkout") return "Byt alle håndklæder";
   const n = r.towel_count ?? (r.wants_towels ? 1 : 0);
-  return n > 0 ? `Byt ${n} ${n === 1 ? "håndklæde" : "håndklæder"}` : "Ingen håndklædebytte";
+  return n > 0 ? `Byt ${n} ${n === 1 ? "poolhåndklæde" : "poolhåndklæder"}` : "Ingen poolhåndklæder";
 }

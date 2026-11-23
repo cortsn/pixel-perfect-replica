@@ -11,14 +11,12 @@ type Stats = {
   top_items: { description: string; qty: number; cents: number }[]; orders_by_status: { status: OrderStatus; n: number }[];
   rating_avg: number | null; rating_count: number; checkouts: number;
 };
-type OrderLite = { type: string; details: string; quantity?: number; cancelled?: boolean };
 
 /** Statistik: omsætning, populære varer, ordrer og gæsternes ratings. */
 export function StatsPage() {
   const { pin } = useStaff();
   const [days, setDays] = useState(14);
   const { data, error } = useStaffData<Stats>('staff_stats', { _days: days }, 30000);
-  const orders = useStaffData<OrderLite[]>('staff_orders', { _limit: 300 }, 60000);
   const total = (data?.revenue_by_day ?? []).reduce((s, d) => s + Number(d.cents), 0);
   const max = Math.max(1, ...(data?.revenue_by_day ?? []).map(d => Number(d.cents)));
   return (
@@ -55,7 +53,7 @@ export function StatsPage() {
           </div>
         </div>
       )}
-      <div className="-mx-4 mt-8 border-t lg:-mx-8"><OpsPanel pin={pin} orders={orders.data ?? []} /></div>
+      <div className="-mx-4 mt-8 border-t lg:-mx-8"><OpsPanel pin={pin} /></div>
     </>
   );
 }

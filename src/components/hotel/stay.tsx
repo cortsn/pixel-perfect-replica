@@ -1,5 +1,7 @@
-import { Bell, CheckCircle2, Clock, DoorOpen, X } from 'lucide-react';
+import { useState } from 'react';
+import { Bell, CheckCircle2, Clock, DoorOpen, Pencil, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { TimeWheelDialog } from '@/components/hotel/time-wheel';
 import { countdown, dayTime, hm, noticeText, remaining } from '@/lib/stay';
 
 type Kind = 'start' | 'end' | 'both';
@@ -57,21 +59,23 @@ export function StayEndTimer({ endsAt, clock }: { endsAt: string; clock: number 
 }
 
 export type StayRow = { id: string; reference: string; room_number: string; guest_name: string; guests?: number; starts_at: string; ends_at: string; checked_in_at: string | null };
-const STEP = (m: number) => m * 60000;
 
-/** Personalets oversigt: tjek ind-status og knapper til at lægge tid på eller tage tid af. */
+/** Personalets oversigt: søg i opholdene, se tjek ind-status og ret start- eller sluttid med et ur. */
 export function StayControlsView({ stays, now, busy, onChange }: { stays: StayRow[]; now: number; busy: string | null; onChange: (s: StayRow, starts: Date, ends: Date) => void }) {
-  const shift = (iso: string, m: number) => new Date(Date.parse(iso) + STEP(m));
-  const label = (m: number) => `${m > 0 ? '+' : '−'}${Math.abs(m) >= 60 ? `${Math.abs(m) / 60} t` : `${Math.abs(m)} min`}`;
+  const [q, setQ] = useState('');
+  const [editing, setEditing] = useState<{ stay: StayRow; which: 'start' | 'end' } | null>(null);
+  const list = stays.filter(s => `${s.room_number} ${s.guest_name} ${s.reference}`.toLowerCase().includes(q.trim().toLowerCase()));
   return (
     <section id="ophold" className="min-w-0">
       <div className="flex items-baseline justify-between gap-2">
         <h2 className="text-3xl">Ophold & tider</h2>
-        <span className="text-sm text-muted-foreground">{stays.length} ophold</span>
+        <span className="text-sm text-muted-foreground">{q ? `${list.length} af ${stays.length}` : stays.length} ophold</span>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">Ændr start- eller sluttid. Gæsten får besked i appen.</p>
+      <label className="relative mt-3 block sm:max-w-sm"><span className="sr-only">Søg i ophold</span><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Søg værelse, navn eller booking" className="w-full rounded-md border bg-background py-2 pl-9 pr-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" /></label>
       <ul className="mt-4 grid gap-3 lg:grid-cols-2">
-        {stays.map(s => {
+        {list.map(s => {
           const started = Date.parse(s.starts_at) <= now;
           return (
             <li key={s.id} className="rounded-2xl border bg-card p-4 shadow-sm">
@@ -87,18 +91,30 @@ export function StayControlsView({ stays, now, busy, onChange }: { stays: StayRo
               <div className="mt-4 space-y-3 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span><span className="text-muted-foreground">Start </span><span className="font-medium">{dayTime(s.starts_at)}</span></span>
-                  {!started && <div className="flex gap-1">{[-30, 30].map(m => <Button key={m} size="sm" variant="outline" disabled={busy === s.id} onClick={() => onChange(s, shift(s.starts_at, m), new Date(s.ends_at))}>{label(m)}</Button>)}</div>}
+                  {!started && <Button size="sm" variant="outline" disabled={busy === s.id} onClick={() => setEditing({ stay: s, which: 'start' })}><Pencil />Ændr start</Button>}
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span><span className="text-muted-foreground">Check ud </span><span className="font-medium">{dayTime(s.ends_at)}</span></span>
-                  <div className="flex gap-1">{[-60, -30, 30, 60].map(m => <Button key={m} size="sm" variant="outline" disabled={busy === s.id} onClick={() => onChange(s, new Date(s.starts_at), shift(s.ends_at, m))}>{label(m)}</Button>)}</div>
+                  <Button size="sm" variant="outline" disabled={busy === s.id} onClick={() => setEditing({ stay: s, which: 'end' })}><Pencil />Ændr check ud</Button>
                 </div>
               </div>
             </li>
           );
         })}
-        {stays.length === 0 && <li className="py-6 text-center text-sm text-muted-foreground">Ingen aktive ophold</li>}
+        {list.length === 0 && <li className="py-6 text-center text-sm text-muted-foreground">{stays.length === 0 ? 'Ingen aktive ophold' : 'Ingen ophold matcher søgningen'}</li>}
       </ul>
+      {editing && (
+        <TimeWheelDialog
+          title={editing.which === 'start' ? `Ny starttid · Værelse ${editing.stay.room_number}` : `Ny check ud-tid · Værelse ${editing.stay.room_number}`}
+          description={`${editing.stay.guest_name} · ${editing.stay.reference}. Gæsten får besked i appen.`}
+          value={new Date(editing.which === 'start' ? editing.stay.starts_at : editing.stay.ends_at)}
+          validate={d => editing.which === 'start'
+            ? (d.getTime() >= Date.parse(editing.stay.ends_at) ? 'Starten skal være før check ud-tiden.' : null)
+            : (d.getTime() <= Date.parse(editing.stay.starts_at) ? 'Check ud skal være efter starttiden.' : d.getTime() <= now ? 'Check ud-tiden skal ligge i fremtiden.' : null)}
+          onClose={() => setEditing(null)}
+          onSave={d => { const { stay, which } = editing; setEditing(null); onChange(stay, which === 'start' ? d : new Date(stay.starts_at), which === 'end' ? d : new Date(stay.ends_at)); }}
+        />
+      )}
     </section>
   );
 }

@@ -28,9 +28,10 @@ function Orders() {
     if (r.ok) await reload();
   }
   if (!data) return <p className="py-10 text-center text-sm text-muted-foreground">{error ?? 'Henter ordrer…'}</p>;
+  const orders = data.filter(o => o.type === 'room_service'); // håndklæde-bytte er en opgave og ligger under Opgaver
   return (
     <>
-      <OrdersBoard orders={data} onAdvance={advance} onReject={reject} />
+      <OrdersBoard orders={orders} onAdvance={advance} onReject={reject} />
       <p className="mt-4 text-xs text-muted-foreground">Når en roomservice-ordre sættes til <b>Leveret</b>, lægges den automatisk på gæstens regning.</p>
     </>
   );

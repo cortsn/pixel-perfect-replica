@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Minus, Plus, Search, Trash2 } from 'lucide-react';
+import { Check, Minus, Plus, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { BILL_CATEGORIES, categoryLabel, lineTotal, type BillCategory } from '@/lib/billing';
@@ -20,7 +20,7 @@ function NewSale() {
   const menu = useStaffData<MenuData>('staff_menu');
   const today = useStaffData<SaleRow[]>('staff_history', { _kind: 'sales', _q: '', _from: todayIso(), _to: todayIso() }, 10000);
   const [q, setQ] = useState('');
-  const [target, setTarget] = useState<string | null>(null);
+  const [targets, setTargets] = useState<string[]>([]);
   const [account, setAccount] = useState<BillCategory>('restaurant_bar');
   const [catId, setCatId] = useState<string | null>(null);
   const [lines, setLines] = useState<SaleLine[]>([]);
@@ -29,7 +29,9 @@ function NewSale() {
 
   const inHouse = useMemo(() => (guests.data ?? []).filter(g => g.in_house).sort((a, b) => a.room_number.localeCompare(b.room_number, 'da', { numeric: true })), [guests.data]);
   const matches = inHouse.filter(g => `${g.room_number} ${g.guest_name}`.toLowerCase().includes(q.trim().toLowerCase()));
-  const chosen = inHouse.find(g => g.id === target) ?? null;
+  const chosen = inHouse.filter(g => targets.includes(g.id));
+  const toggle = (id: string) => setTargets(t => (t.includes(id) ? t.filter(x => x !== id) : [...t, id]));
+  const roomsText = chosen.map(g => g.room_number).join(', ');
   const cats = (menu.data?.categories ?? []).filter(c => c.active);
   const cat = cats.find(c => c.id === catId) ?? cats[0];
   const items = (menu.data?.items ?? []).filter(i => i.active && i.category_id === cat?.id);
@@ -49,18 +51,20 @@ function NewSale() {
     setCustom({ description: '', price: '', qty: '1' });
   }
   async function submit() {
-    if (!chosen) { toast.error('Vælg først en gæst eller et værelse.'); return; }
+    if (chosen.length === 0) { toast.error('Vælg først en gæst eller et værelse.'); return; }
     if (lines.some(l => parseDKK(l.price) === null)) { toast.error('En af linjerne har en ugyldig pris.'); return; }
     setBusy(true);
+    // Hver valgt regning får alle linjer. Fejler en, stopper vi, og det der allerede er lagt på, fjernes fra kurven.
+    const work = chosen.flatMap(g => lines.map(l => ({ g, l })));
     let done = 0;
-    for (const l of lines) {
-      const r = await act('staff_bill_add', { _booking: chosen.id, _category: account, _description: l.description, _qty: l.qty, _unit_cents: parseDKK(l.price) });
+    for (const { g, l } of work) {
+      const r = await act('staff_bill_add', { _booking: g.id, _category: account, _description: l.description, _qty: l.qty, _unit_cents: parseDKK(l.price) });
       if (!r.ok) break;
       done++;
     }
     setBusy(false);
-    if (done === lines.length) { toast.success(`${done} ${done === 1 ? 'post' : 'poster'} lagt på regningen · Værelse ${chosen.room_number}`); setLines([]); }
-    else setLines(ls => ls.slice(done));
+    if (done === work.length) { toast.success(`${done} ${done === 1 ? 'post' : 'poster'} lagt på regningen · Værelse ${roomsText}`); setLines([]); setTargets([]); }
+    else toast.error(`${done} af ${work.length} poster blev lagt på. Tjek regningerne, før du prøver igen.`);
     await Promise.all([guests.reload(), today.reload()]);
   }
 
@@ -68,10 +72,12 @@ function NewSale() {
     <div className="grid gap-6 xl:grid-cols-[1fr_22rem]">
       <div className="space-y-4">
         <section className={card}>
-          <h2 className="text-xl">1. Hvem skal have regningen?</h2>
+          <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-xl">1. Hvem skal have regningen?</h2>
+            {chosen.length > 0 && <button type="button" className="text-xs text-muted-foreground underline" onClick={() => setTargets([])}>Fjern alle ({chosen.length})</button>}</div>
+          <p className="mt-1 text-xs text-muted-foreground">Tryk på et værelse for at vælge det, og tryk igen for at fjerne det. Du kan vælge flere.</p>
           <label className="relative mt-3 block"><span className="sr-only">Søg gæst eller værelse</span><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Skriv værelsesnummer eller navn" className={`${field} pl-9`} /></label>
-          <div className="mt-3 flex max-h-44 flex-wrap gap-2 overflow-y-auto" role="radiogroup" aria-label="Gæst">
-            {matches.map(g => <Button key={g.id} type="button" size="sm" role="radio" aria-checked={target === g.id} variant={target === g.id ? 'default' : 'outline'} onClick={() => setTarget(g.id)}>{g.room_number} · {g.guest_name}</Button>)}
+          <div className="mt-3 flex max-h-44 flex-wrap gap-2 overflow-y-auto" role="group" aria-label="Gæster">
+            {matches.map(g => <Button key={g.id} type="button" size="sm" role="checkbox" aria-checked={targets.includes(g.id)} variant={targets.includes(g.id) ? 'default' : 'outline'} onClick={() => toggle(g.id)}>{targets.includes(g.id) && <Check />}{g.room_number} · {g.guest_name}</Button>)}
             {matches.length === 0 && <p className="text-sm text-muted-foreground">{guests.data ? 'Ingen boende gæster matcher.' : 'Henter…'}</p>}
           </div>
         </section>
@@ -115,8 +121,8 @@ function NewSale() {
             {lines.length === 0 && <li className="py-4 text-center text-sm text-muted-foreground">Tryk på et produkt ovenfor for at tilføje det.</li>}
           </ul>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
-            <span className="text-lg font-semibold tabular-nums">{fmtDKK(total)}</span>
-            <Button disabled={busy || lines.length === 0 || !chosen} onClick={submit}>{chosen ? `Læg på regning · Værelse ${chosen.room_number}` : 'Vælg gæst først'}</Button>
+            <span className="text-lg font-semibold tabular-nums">{fmtDKK(total)}{chosen.length > 1 && <span className="ml-2 text-sm font-normal text-muted-foreground">pr. regning · i alt {fmtDKK(total * chosen.length)}</span>}</span>
+            <Button disabled={busy || lines.length === 0 || chosen.length === 0} onClick={submit}>{chosen.length === 0 ? 'Vælg gæst først' : chosen.length === 1 ? `Læg på regning · Værelse ${roomsText}` : `Læg på ${chosen.length} regninger · ${roomsText}`}</Button>
           </div>
         </section>
       </div>
