@@ -1,10 +1,11 @@
 import { useState } from 'react';
+import { Search, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { OpsPanel } from '@/components/hotel/ops-panel';
 import { ORDER_LABELS, type OrderStatus } from '@/lib/hotel';
 import { categoryLabel } from '@/lib/billing';
 import { fmtDKK } from '@/lib/money';
-import { PageTitle, card, useStaff, useStaffData } from '@/components/staff/core';
+import { PageTitle, card, dayTime, field, useDebounced, useStaff, useStaffData } from '@/components/staff/core';
 
 type Stats = {
   days: number; revenue_by_day: { day: string; cents: number }[]; revenue_by_category: { category: string; cents: number }[];
@@ -56,4 +57,62 @@ export function StatsPage() {
       <div className="-mx-4 mt-8 border-t lg:-mx-8"><OpsPanel pin={pin} /></div>
     </>
   );
+}
+
+type Review = { id: string; room_number: string; rating: number; comment: string; created_at: string; guest_name: string | null; reference: string | null };
+type Reviews = { count: number; avg: number | null; distribution: { rating: number; n: number }[]; items: Review[] };
+
+const Stars = ({ n }: { n: number }) => <span className="inline-flex gap-0.5" role="img" aria-label={`${n} af 5 stjerner`}>{[1, 2, 3, 4, 5].map(i => <Star key={i} className={`h-4 w-4 ${i <= n ? 'fill-brass text-brass' : 'text-muted-foreground/40'}`} />)}</span>;
+
+/** Alle gæsteanmeldelser: gennemsnit, fordeling, søgning og filter på antal stjerner. */
+function ReviewsPage() {
+  const [rating, setRating] = useState<number | null>(null);
+  const [q, setQ] = useState('');
+  const dq = useDebounced(q);
+  const { data, error } = useStaffData<Reviews>('staff_feedback', { _rating: rating, _q: dq.trim() }, 30000);
+  const total = data?.count ?? 0;
+  return (
+    <>
+      <PageTitle title="Ratings & anmeldelser" hint="Alt hvad gæsterne har skrevet efter deres ophold." />
+      {!data ? <p className="py-10 text-center text-sm text-muted-foreground">{error ?? 'Henter anmeldelser…'}</p> : (
+        <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
+          <aside className={`${card} self-start`}>
+            <p className="text-sm text-muted-foreground">Gennemsnit</p>
+            <p className="mt-1 font-display text-5xl leading-none tabular-nums">{data.avg ?? '–'}<span className="text-xl text-muted-foreground"> / 5</span></p>
+            <p className="mt-1 text-xs text-muted-foreground">{total} {total === 1 ? 'anmeldelse' : 'anmeldelser'}</p>
+            <ul className="mt-4 space-y-1.5" aria-label="Fordeling">
+              {data.distribution.map(d => (
+                <li key={d.rating}>
+                  <button type="button" aria-pressed={rating === d.rating} onClick={() => setRating(rating === d.rating ? null : d.rating)} className={`grid w-full grid-cols-[2rem_1fr_2rem] items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-accent ${rating === d.rating ? 'bg-accent font-semibold' : ''}`}>
+                    <span className="flex items-center gap-0.5">{d.rating}<Star className="h-3.5 w-3.5 fill-brass text-brass" /></span>
+                    <span className="h-2 overflow-hidden rounded-full bg-secondary"><span className="block h-full rounded-full bg-brass" style={{ width: `${total ? (d.n / total) * 100 : 0}%` }} /></span>
+                    <span className="text-right tabular-nums text-muted-foreground">{d.n}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {rating !== null && <Button size="sm" variant="ghost" className="mt-2" onClick={() => setRating(null)}>Vis alle vurderinger</Button>}
+          </aside>
+          <section className="min-w-0">
+            <label className="relative mb-3 block sm:max-w-sm"><span className="sr-only">Søg i anmeldelser</span><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Søg navn, værelse eller tekst" className={`${field} pl-9`} /></label>
+            <ul className="space-y-2">
+              {data.items.map(r => (
+                <li key={r.id} className={card}>
+                  <div className="flex flex-wrap items-center justify-between gap-2"><Stars n={r.rating} /><span className="text-xs text-muted-foreground">{dayTime(r.created_at)}</span></div>
+                  {r.comment ? <p className="mt-2 break-words text-sm">{r.comment}</p> : <p className="mt-2 text-sm italic text-muted-foreground">Ingen kommentar</p>}
+                  <p className="mt-2 text-xs text-muted-foreground">{r.guest_name ?? 'Gæst'} · Værelse {r.room_number}{r.reference ? ` · ${r.reference}` : ''}</p>
+                </li>
+              ))}
+              {data.items.length === 0 && <li className={`${card} py-10 text-center text-sm text-muted-foreground`}>Ingen anmeldelser matcher</li>}
+            </ul>
+          </section>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Statistik: dashboardet som hovedside og undersiden med ratings og anmeldelser. */
+export function StatsSection({ page }: { page: string }) {
+  return page === 'reviews' ? <ReviewsPage /> : <StatsPage />;
 }

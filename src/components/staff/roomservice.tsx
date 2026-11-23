@@ -1,10 +1,8 @@
-import { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { isDemoBackend } from '@/lib/cleaning';
 import { nextOrderStatus } from '@/lib/hotel';
 import { OrdersBoard, type BoardOrder } from '@/components/hotel/orders-board';
-import { MenuAdmin } from '@/components/staff/menu-admin';
 import { PageTitle, useAct, useStaffData } from '@/components/staff/core';
 
 /** Ordreoversigt (modtag, accepter, afvis, skift status ny → leveret) og administration af menuen. */
@@ -37,15 +35,11 @@ function Orders() {
   );
 }
 
-export function RoomServicePage() {
-  const [tab, setTab] = useState<'orders' | 'menu'>('orders');
+export function OrdersPage() {
   return (
     <>
-      <PageTitle title="Roomservice" hint={tab === 'orders' ? 'Modtag og behandl ordrer fra gæsterne.' : 'Ændringer vises med det samme i gæsteappen.'} actions={
-        <div className="flex rounded-lg border p-0.5" role="tablist">
-          {([['orders', 'Ordrer'], ['menu', 'Menu og åbningstider']] as const).map(([t, l]) => <Button key={t} size="sm" role="tab" aria-selected={tab === t} variant={tab === t ? 'default' : 'ghost'} onClick={() => setTab(t)}>{l}</Button>)}
-        </div>} />
-      {tab === 'orders' ? <Orders /> : <MenuAdmin />}
+      <PageTitle title="Ordrer" hint="Modtag og behandl roomservice-ordrer fra gæsterne. Leverede ordrer lægges automatisk på gæstens regning." />
+      <Orders />
     </>
   );
 }

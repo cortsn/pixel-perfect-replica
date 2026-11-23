@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CalendarClock, Check, Info, Minus, Plus, Sparkles } from 'lucide-react';
+import { CalendarClock, Check, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { todayAt, towelText, type CleaningRequest } from '@/lib/cleaning';
@@ -17,32 +17,22 @@ function Choice({ on, onClick, title, hint }: { on: boolean; onClick: () => void
   );
 }
 
-/** Bestil rengøring: håndklædebytte ja/nej og evt. tidsrum, hvor gæsten ikke er på værelset. */
+/** Bestil rengøring: vælg evt. tidsrum, hvor gæsten ikke er på værelset. Værelseshåndklæderne skiftes ved rengøringen. */
 export function CleaningForm({ room, guests, busy, onSubmit }: { room: string; guests: number; busy?: boolean; onSubmit: (towels: number, from: Date | null, until: Date | null) => void }) {
-  const [towels, setTowels] = useState(0);
   const [away, setAway] = useState(false);
   const [from, setFrom] = useState('');
   const [until, setUntil] = useState('');
   function submit() {
-    if (!away) { onSubmit(towels, null, null); return; }
+    if (!away) { onSubmit(guests, null, null); return; }
     if (!from || !until) { toast.error('Vælg fra og til, eller vælg "Når som helst".'); return; }
     const f = todayAt(from), u = todayAt(until);
     if (u <= f) { toast.error('Sluttidspunktet skal være efter starttidspunktet.'); return; }
     if (u.getTime() <= Date.now()) { toast.error('Tidsrummet ligger allerede i fortiden.'); return; }
-    onSubmit(towels, f, u);
+    onSubmit(guests, f, u);
   }
   return (
     <div className="space-y-5 text-center">
       <p className="text-muted-foreground">Rengøring af værelse {room}</p>
-      <div>
-        <p className="mb-2 flex items-center justify-center gap-2 font-semibold"><Sparkles className="h-4 w-4 text-brass" />Skal vi bytte poolhåndklæder?</p>
-        <div className="flex items-center justify-center gap-4">
-          <Button type="button" variant="outline" size="icon" className="h-9 w-9 rounded-full" aria-label="Færre håndklæder" disabled={towels <= 0} onClick={() => setTowels(towels - 1)}><Minus /></Button>
-          <span className="min-w-24 text-center"><span className="text-2xl font-semibold tabular-nums">{towels}</span><span className="block text-xs text-muted-foreground">{towels === 0 ? 'ingen byttes' : towels === 1 ? 'håndklæde' : 'håndklæder'}</span></span>
-          <Button type="button" variant="outline" size="icon" className="h-9 w-9 rounded-full" aria-label="Flere håndklæder" disabled={towels >= guests} onClick={() => setTowels(towels + 1)}><Plus /></Button>
-        </div>
-        <p className="mt-2 text-xs text-muted-foreground">Det er <b>poolhåndklæderne</b>, der byttes her (op til {guests}, lige så mange som personer på værelset). Læg dem synligt på værelset, så rengøringen kan se dem. Værelsets egne håndklæder byttes under <b>Håndklæder</b> på forsiden.</p>
-      </div>
       <div>
         <p className="mb-2 flex items-center justify-center gap-2 font-semibold"><CalendarClock className="h-4 w-4 text-brass" />Hvornår passer det?</p>
         <div className="grid grid-cols-2 gap-2">

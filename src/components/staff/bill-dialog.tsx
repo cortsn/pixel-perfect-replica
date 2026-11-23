@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Ban, Check, LogOut, Pencil, Plus, Receipt, X } from 'lucide-react';
+import { Ban, Check, LogIn, LogOut, Mail, Pencil, Plus, Receipt, Users, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { BILL_CATEGORIES, PAYMENT_METHODS, groupBill, lineTotal, type Bill, type BillCategory, type BillItem } from '@/lib/billing';
 import { centsToInput, fmtDKK, parseDKK } from '@/lib/money';
-import { card, dayTime, field, useAct, useStaffData } from '@/components/staff/core';
+import { card, dayTime, field, hm, useAct, useStaffData } from '@/components/staff/core';
+import { TimeWheelDialog } from '@/components/hotel/time-wheel';
 
 type Edit = { id: string; category: BillCategory; description: string; qty: string; price: string };
 
@@ -19,6 +20,7 @@ export function BillDialog({ bookingId, onClose, onChanged }: { bookingId: strin
   const [note, setNote] = useState('');
   const [step, setStep] = useState<'bill' | 'pay'>('bill');
   const [busy, setBusy] = useState(false);
+  const [wheel, setWheel] = useState<'start' | 'end' | null>(null);
 
   const b = bill?.booking;
   const open = !!b && !b.checked_out_at;
@@ -52,6 +54,16 @@ export function BillDialog({ bookingId, onClose, onChanged }: { bookingId: strin
   }
   async function accommodation() {
     const r = await act('staff_bill_add_accommodation', { _booking: bookingId }, 'Overnatning er lagt på regningen');
+    if (r.ok) await changed();
+  }
+  async function checkIn() {
+    setBusy(true);
+    const r = await act('staff_check_in', { _booking: bookingId }, 'Gæsten er tjekket ind');
+    setBusy(false);
+    if (r.ok) await changed();
+  }
+  async function saveTimes(starts: Date, ends: Date) {
+    const r = await act('staff_set_stay', { _booking: bookingId, _starts: starts.toISOString(), _ends: ends.toISOString() }, 'Tiden er ændret. Gæsten får besked i appen.');
     if (r.ok) await changed();
   }
   async function checkout() {
@@ -91,17 +103,48 @@ export function BillDialog({ bookingId, onClose, onChanged }: { bookingId: strin
     </div>
   );
   const groups = bill ? groupBill(bill.items) : [];
+  const nowMs = Date.now();
+  const started = !!b && Date.parse(b.starts_at) <= nowMs;
+  const ended = !!b && Date.parse(b.ends_at) <= nowMs;
+  const overdue = open && ended;
   return (
     <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
       <DialogContent aria-describedby="bill-desc" className="max-h-[92dvh] w-[calc(100%-1.5rem)] max-w-3xl overflow-y-auto rounded-2xl p-0">
         {step === 'pay' && payView ? payView : <div className="space-y-5 p-5 sm:p-6">
           <div>
-            <DialogTitle className="flex items-center gap-2 text-2xl"><Receipt className="h-5 w-5 text-brass" />Regning</DialogTitle>
-            <DialogDescription id="bill-desc" className="mt-1">
-              {b ? <>{b.guest_name} · Værelse {b.room_number} · {b.reference} · {dayTime(b.starts_at)} – {dayTime(b.ends_at)}</> : error ?? 'Henter…'}
-            </DialogDescription>
-            {b?.checked_out_at && <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-status-clean/15 px-3 py-1 text-xs font-semibold text-status-clean"><Check className="h-3 w-3" />Tjekket ud {dayTime(b.checked_out_at)} · regningen er afsluttet</p>}
+            <DialogTitle className="flex items-center gap-2 text-2xl"><Receipt className="h-5 w-5 text-brass" />Gæst & regning</DialogTitle>
+            <DialogDescription id="bill-desc" className="mt-1">{b ? 'Ophold, regning og check ind/ud samlet ét sted.' : error ?? 'Henter…'}</DialogDescription>
           </div>
+          {b && (
+            <section className={`${card} space-y-3`} aria-label="Gæst og ophold">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xl font-semibold leading-tight">{b.guest_name}</p>
+                  <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-muted-foreground">
+                    <span>Værelse <b className="text-foreground">{b.room_number}</b></span><span>{b.reference}</span>
+                    <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" />{b.guests} {b.guests === 1 ? 'gæst' : 'gæster'}</span>
+                    {b.guest_email && <span className="flex items-center gap-1"><Mail className="h-3.5 w-3.5" />{b.guest_email}</span>}
+                  </p>
+                </div>
+                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${b.checked_out_at ? 'bg-status-clean/15 text-status-clean' : overdue ? 'bg-status-dirty/15 text-status-dirty' : b.checked_in_at ? 'bg-status-clean/15 text-status-clean' : 'bg-secondary'}`}>
+                  {b.checked_out_at ? `Tjekket ud ${hm(b.checked_out_at)}` : overdue ? 'Skal tjekkes ud' : b.checked_in_at ? `Tjekket ind ${hm(b.checked_in_at)}` : started ? 'Ikke tjekket ind' : 'Ankommer'}
+                </span>
+              </div>
+              <dl className="grid gap-2 text-sm sm:grid-cols-2">
+                <div className="flex items-center justify-between gap-2 rounded-lg bg-secondary/60 px-3 py-2"><div><dt className="text-xs text-muted-foreground">Check ind</dt><dd className="font-medium">{dayTime(b.starts_at)}</dd></div>
+                  {open && !b.checked_in_at && !started && <Button size="sm" variant="outline" onClick={() => setWheel('start')}><Pencil />Ændr</Button>}</div>
+                <div className="flex items-center justify-between gap-2 rounded-lg bg-secondary/60 px-3 py-2"><div><dt className="text-xs text-muted-foreground">Check ud</dt><dd className="font-medium">{dayTime(b.ends_at)}</dd></div>
+                  {open && <Button size="sm" variant="outline" onClick={() => setWheel('end')}><Pencil />Ændr</Button>}</div>
+              </dl>
+              {open && (
+                <div className="flex flex-wrap gap-2">
+                  {!b.checked_in_at && !ended && <Button disabled={busy} onClick={checkIn}><LogIn />Tjek ind</Button>}
+                  {started && <Button variant={overdue || b.checked_in_at ? 'default' : 'outline'} onClick={() => setStep('pay')}><LogOut />Tjek ud · {fmtDKK(bill?.due_cents ?? 0)}</Button>}
+                </div>
+              )}
+              {b.checked_out_at && <p className="inline-flex items-center gap-1 text-xs font-semibold text-status-clean"><Check className="h-3 w-3" />Opholdet er afsluttet, og regningen er gemt i historikken.</p>}
+            </section>
+          )}
 
           {bill && groups.length === 0 && <p className={`${card} text-center text-sm text-muted-foreground`}>Der er ingen poster på regningen endnu.</p>}
           {groups.map(g => (
@@ -173,6 +216,18 @@ export function BillDialog({ bookingId, onClose, onChanged }: { bookingId: strin
           <div className="flex justify-end"><Button variant="outline" onClick={onClose}>Luk</Button></div>
         </div>}
       </DialogContent>
+      {wheel && b && (
+        <TimeWheelDialog
+          title={wheel === 'start' ? 'Ny check ind-tid' : 'Ny check ud-tid'}
+          description={`${b.guest_name} · Værelse ${b.room_number}. Gæsten får besked i appen.`}
+          value={new Date(wheel === 'start' ? b.starts_at : b.ends_at)}
+          validate={d => wheel === 'start'
+            ? (d.getTime() >= Date.parse(b.ends_at) ? 'Check ind skal være før check ud.' : null)
+            : (d.getTime() <= Date.parse(b.starts_at) ? 'Check ud skal være efter check ind.' : d.getTime() <= Date.now() ? 'Check ud-tiden skal ligge i fremtiden.' : null)}
+          onClose={() => setWheel(null)}
+          onSave={d => { setWheel(null); void saveTimes(wheel === 'start' ? d : new Date(b.starts_at), wheel === 'end' ? d : new Date(b.ends_at)); }}
+        />
+      )}
     </Dialog>
   );
 }

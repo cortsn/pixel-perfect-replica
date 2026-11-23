@@ -1,10 +1,8 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, Check, ChevronDown, Search } from 'lucide-react';
-import { toast } from 'sonner';
+import { AlertTriangle, ChevronDown, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { HOUSEKEEPING_LABELS, type HousekeepingStatus } from '@/lib/hotel';
-import { centsToInput, fmtDKK, parseDKK } from '@/lib/money';
 import { PageTitle, dayTime, field, useAct, useStaff, useStaffData } from '@/components/staff/core';
 
 export type Room = {
@@ -17,12 +15,11 @@ type Filter = 'all' | 'free' | 'occupied' | 'cleaning' | 'problems';
 const DOT: Record<HousekeepingStatus, string> = { occupied: 'bg-primary', needs_cleaning: 'bg-status-dirty', cleaning: 'bg-status-cleaning', clean: 'bg-status-clean' };
 const EDGE: Record<HousekeepingStatus, string> = { occupied: 'border-l-primary', needs_cleaning: 'border-l-status-dirty', cleaning: 'border-l-status-cleaning', clean: 'border-l-status-clean' };
 
-/** Mulige problemer i et værelse: overskredet check ud, status der ikke passer til gæsten, eller manglende pris. */
+/** Mulige problemer i et værelse: overskredet check ud eller en status, der ikke passer til gæsten. */
 export function roomProblems(r: Room): string[] {
   const out: string[] = [];
   if (r.overdue_booking_id) out.push(`Check ud-tiden er overskredet (${r.overdue_guest ?? 'gæst'} er ikke tjekket ud)`);
   if (r.housekeeping_status === 'occupied' && !r.guest_name && !r.overdue_booking_id) out.push('Status er "Gæst på værelset", men der bor ingen gæst');
-  if (r.rate_cents === 0) out.push('Mangler pris pr. nat');
   return out;
 }
 const isOccupied = (r: Room) => !!r.guest_name || !!r.overdue_booking_id;
@@ -46,19 +43,11 @@ function RoomTile({ r, onOpen }: { r: Room; onOpen: () => void }) {
   );
 }
 
-/** Sidepanel med alle detaljer for ét værelse: gæst, status, pris og problemer. */
+/** Sidepanel med detaljer for ét værelse: gæst, status og problemer. */
 function RoomPanel({ room, onClose, onChanged }: { room: Room; onClose: () => void; onChanged: () => void }) {
   const act = useAct();
   const { openBill } = useStaff();
-  const [rate, setRate] = useState(centsToInput(room.rate_cents));
-  const dirty = parseDKK(rate) !== room.rate_cents;
   const problems = roomProblems(room);
-  async function saveRate() {
-    const cents = parseDKK(rate);
-    if (cents === null || cents < 0) { toast.error('Skriv en gyldig pris pr. nat.'); return; }
-    const res = await act('staff_room_rate_set', { _room: room.number, _cents: cents }, `Værelse ${room.number}: prisen er gemt`);
-    if (res.ok) onChanged();
-  }
   async function setStatus(status: HousekeepingStatus) {
     const res = await act('staff_set_room_status', { _room: room.number, _status: status }, `Værelse ${room.number}: ${HOUSEKEEPING_LABELS[status]}`);
     if (res.ok) onChanged();
@@ -94,15 +83,6 @@ function RoomPanel({ room, onClose, onChanged }: { room: Room; onClose: () => vo
               ))}
             </div>
           </section>
-          <section>
-            <h3 className="text-lg">Pris pr. nat</h3>
-            <p className="text-xs text-muted-foreground">Bruges, når overnatning lægges på en regning.</p>
-            <div className="mt-2 flex items-end gap-2">
-              <label className="min-w-0 flex-1 text-xs text-muted-foreground">Kroner<input aria-label={`Pris for værelse ${room.number}`} inputMode="decimal" className={`${field} mt-1`} value={rate} onChange={e => setRate(e.target.value)} /></label>
-              <Button variant={dirty ? 'default' : 'outline'} disabled={!dirty} onClick={saveRate}><Check />Gem</Button>
-            </div>
-            {room.rate_cents > 0 && !dirty && <p className="mt-1 text-xs text-muted-foreground">Nu: {fmtDKK(room.rate_cents)} pr. nat</p>}
-          </section>
         </div>
       </SheetContent>
     </Sheet>
@@ -124,7 +104,7 @@ export function RoomsPage() {
   const filters: [Filter, string][] = [['all', 'Alle'], ['free', 'Ledige'], ['occupied', 'Optagede'], ['cleaning', 'Rengøring'], ['problems', 'Problemer']];
   return (
     <>
-      <PageTitle title="Værelser" hint="Tryk på et værelse for at se og ændre status, pris og gæst." />
+      <PageTitle title="Værelser" hint="Tryk på et værelse for at se og ændre status og gæst." />
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrer værelser">
           {filters.map(([f, l]) => (
@@ -156,7 +136,7 @@ export function RoomsPage() {
           );
         })}
       </div>
-      {open && <RoomPanel key={`${open.number}-${open.rate_cents}`} room={open} onClose={() => setOpenNumber(null)} onChanged={() => void reload()} />}
+      {open && <RoomPanel key={open.number} room={open} onClose={() => setOpenNumber(null)} onChanged={() => void reload()} />}
     </>
   );
 }

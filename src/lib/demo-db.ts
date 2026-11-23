@@ -71,9 +71,9 @@ function seed(): State {
     bk('HP-1001', '101', 'Anna Nielsen', 2, now - 5 * M, now + 26 * H, false),
     bk('HP-2001', '201', 'Mads Jensen', 2, now - 20 * H, now + 20 * H, true, { breakfast_choice: 'hotel', dinner_choice: 'hotel' }),
     bk('HP-2003', '203', 'Maria Holm', 2, now - 5 * H, now + 20 * H, true, { breakfast_choice: 'hotel', lunch_choice: 'out', dinner_choice: 'hotel' }),
-    bk('HP-3002', '302', 'Emma Nielsen', 2, now - 30 * H, now + 3 * H, true, { breakfast_choice: 'out' }),
+    bk('HP-3002', '302', 'Emma Nielsen', 2, now - 30 * H, now + 100 * M, true, { breakfast_choice: 'out' }),
     bk('HP-3004', '304', 'Familien Holm', 4, now - 8 * H, now + 40 * H, true, { dinner_choice: 'hotel' }),
-    bk('HP-3003', '303', 'Jens Aaby', 1, now + 3 * H, now + 50 * H, false),
+    bk('HP-3003', '303', 'Jens Aaby', 1, now + 95 * M, now + 50 * H, false),
   ];
   const cats: Cat[] = [{ id: 'c-mad', name: 'Mad', sort: 1, active: true }, { id: 'c-snack', name: 'Snacks', sort: 2, active: true }, { id: 'c-drik', name: 'Drikke', sort: 3, active: true }];
   const it = (id: string, category_id: string, name: string, description: string, price_cents: number, sort: number, extra: Partial<Item> = {}): Item =>
@@ -92,7 +92,7 @@ function seed(): State {
     id: uid('o'), status: 'pending', cancelled: false, quantity: 1, items: [], total_cents: 0, paid: false, reject_reason: '', created_at: iso(now - ago * M), updated_at: iso(now - ago * M), ...o,
   });
   const orders: DemoOrder[] = [
-    ord({ room_number: '203', booking_id: 'b-HP-2003', type: 'towels', details: '2 håndklæder til bytte', quantity: 2 }, 3),
+    ord({ room_number: '203', booking_id: 'b-HP-2003', type: 'towels', details: '2 poolhåndklæder til bytte', quantity: 2 }, 3),
     ord({ room_number: '201', booking_id: 'b-HP-2001', type: 'room_service', details: '1× Club sandwich', items: [line('i-club', 'Club sandwich', 1, 14500)], total_cents: 14500 }, 14),
     ord({ room_number: '302', booking_id: 'b-HP-3002', type: 'room_service', details: '1× Flaske rødvin', status: 'in_progress', items: [line('i-vin', 'Flaske rødvin', 1, 29500)], total_cents: 29500 }, 8),
     ord({ room_number: '304', booking_id: 'b-HP-3004', type: 'room_service', details: '2× Kaffe & croissant', status: 'done', items: [line('i-kaffe', 'Kaffe & croissant', 2, 6500)], total_cents: 13000 }, 90),
@@ -106,8 +106,10 @@ function seed(): State {
     { id: uid('c'), booking_id: 'b-HP-3002', room_number: '302', wants_towels: false, towel_count: 0, away_from: null, away_until: null, status: 'requested', is_repeat: true, kind: 'guest', created_at: iso(now - 10 * M), updated_at: iso(now - 10 * M) },
   ];
   const feedback = [
-    { id: uid('f'), booking_id: 'x1', room_number: '201', rating: 5, comment: 'Dejligt ophold, nem service.', created_at: iso(now - 26 * H) },
-    { id: uid('f'), booking_id: 'x2', room_number: '302', rating: 4, comment: 'Lidt ventetid på room service.', created_at: iso(now - 50 * H) },
+    { id: uid('f'), booking_id: 'b-HP-2001', room_number: '201', rating: 5, comment: 'Dejligt ophold, nem service.', created_at: iso(now - 26 * H) },
+    { id: uid('f'), booking_id: 'b-HP-3002', room_number: '302', rating: 4, comment: 'Lidt ventetid på room service.', created_at: iso(now - 50 * H) },
+    { id: uid('f'), booking_id: 'b-HP-2003', room_number: '203', rating: 5, comment: 'Fantastisk morgenmad og søde medarbejdere.', created_at: iso(now - 74 * H) },
+    { id: uid('f'), booking_id: 'b-HP-3004', room_number: '304', rating: 3, comment: '', created_at: iso(now - 98 * H) },
   ];
   return { rooms, bookings, orders, bills, cleaning, checkouts: [], cats, items, settings: { enabled: true, opens_at: '00:00', closes_at: '00:00' }, feedback, emails: [], members: [], wifi: { ssid: 'HotelPilot_Guest', password: 'Nordlys2026' } };
 }
@@ -127,7 +129,7 @@ function internalBill(id: string) {
   const b = bookingOf(id), r = S.rooms.find(x => x.number === b.room_number)!;
   const items = billOf(id), live = items.filter(i => !i.voided_at);
   return {
-    booking: { id: b.id, reference: b.reference, room_number: b.room_number, guest_name: b.guest_name, guests: b.guests, starts_at: b.starts_at, ends_at: b.ends_at, checked_in_at: b.checked_in_at, checked_out_at: b.checked_out_at, active: b.active, rate_cents: r.rate_cents },
+    booking: { id: b.id, reference: b.reference, room_number: b.room_number, guest_name: b.guest_name, guest_email: b.guest_email, guests: b.guests, starts_at: b.starts_at, ends_at: b.ends_at, checked_in_at: b.checked_in_at, checked_out_at: b.checked_out_at, active: b.active, rate_cents: r.rate_cents },
     items: [...items].sort((a, c) => ts(a.created_at) - ts(c.created_at)),
     total_cents: sum(live), paid_in_app_cents: sum(live.filter(i => i.paid)), due_cents: sum(live.filter(i => !i.paid)),
   };
@@ -200,6 +202,29 @@ const H: Record<string, (a: Dict) => unknown> = {
     return null;
   },
 
+  staff_check_in: a => {
+    const b = bookingOf(String(a['_booking']));
+    if (!b.active) err('BOOKING_NOT_FOUND');
+    if (b.checked_out_at || ts(b.ends_at) <= Date.now()) err('STAY_ENDED');
+    if (b.checked_in_at) err('ALREADY_CHECKED_IN');
+    const now = Date.now();
+    if (ts(b.starts_at) > now) {
+      if (S.bookings.some(o => o.id !== b.id && o.room_number === b.room_number && o.active && !o.checked_out_at && ts(o.starts_at) < ts(b.ends_at) && ts(o.ends_at) > now)) err('ROOM_BUSY');
+      b.starts_at = iso(now); b.notice_kind = b.notice_kind === 'end' || b.notice_kind === 'both' ? 'both' : 'start'; b.notice_at = iso(now);
+    }
+    b.checked_in_at = iso(now);
+    return null;
+  },
+  staff_feedback: a => {
+    const q = String(a['_q'] ?? '').trim().toLowerCase(), rating = a['_rating'] == null ? null : Number(a['_rating']);
+    const book = (id: string) => S.bookings.find(b => b.id === id);
+    const items = [...S.feedback].sort((x, y) => ts(y.created_at) - ts(x.created_at))
+      .map(f => ({ id: f.id, room_number: f.room_number, rating: f.rating, comment: f.comment, created_at: f.created_at, guest_name: book(f.booking_id)?.guest_name ?? null, reference: book(f.booking_id)?.reference ?? null }))
+      .filter(f => (rating === null || f.rating === rating) && `${f.guest_name ?? ''} ${f.room_number} ${f.comment} ${f.reference ?? ''}`.toLowerCase().includes(q));
+    const all = S.feedback;
+    return { count: all.length, avg: all.length ? Math.round((all.reduce((s, f) => s + f.rating, 0) / all.length) * 10) / 10 : null,
+      distribution: [5, 4, 3, 2, 1].map(r => ({ rating: r, n: all.filter(f => f.rating === r).length })), items };
+  },
   staff_bill: a => internalBill(String(a['_booking'])),
   staff_bill_add: a => billAdd(String(a['_booking']), String(a['_category']), String(a['_description']), Number(a['_qty']), Number(a['_unit_cents'])),
   staff_bill_edit: a => {
@@ -367,7 +392,7 @@ const H: Record<string, (a: Dict) => unknown> = {
   staff_set_master_pin: () => null,
 };
 
-const MUTATING = /^(staff_(set|bill_add|bill_edit|bill_void|checkout|menu_.*(save|delete)|roomservice|member_(save|delete)|mock|room_rate))/;
+const MUTATING = /^(staff_(set|check_in|bill_add|bill_edit|bill_void|checkout|menu_.*(save|delete)|roomservice|member_(save|delete)|mock|room_rate))/;
 
 /** Samme form som supabase.rpc, så personalesiden kan bruge den uændret. */
 export async function demoRpc<T = unknown>(name: string, args: Dict): Promise<{ data: T | null; error: { message?: string } | null }> {
@@ -415,7 +440,7 @@ export const demoGuest = {
     if (!Number.isInteger(qty) || qty < 1 || qty > b.guests) err('TOWEL_LIMIT');
     const last = S.orders.filter(o => o.booking_id === b.id && o.type === 'towels' && !o.cancelled && o.status !== 'cancelled').reduce((m, o) => Math.max(m, ts(o.created_at)), 0);
     if (last && last + 12 * 3600e3 > Date.now()) err('TOWEL_COOLDOWN');
-    const id = guestOrder(b.id, 'towels', `${qty} håndklæder til bytte`, { quantity: qty });
+    const id = guestOrder(b.id, 'towels', `${qty} poolhåndklæder til bytte`, { quantity: qty });
     emit();
     return id;
   },

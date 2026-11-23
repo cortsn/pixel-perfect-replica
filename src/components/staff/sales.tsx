@@ -143,15 +143,8 @@ function NewSale() {
   );
 }
 
-export function SalesPage() {
-  const [tab, setTab] = useState<'new' | 'history'>('new');
-  return (
-    <>
-      <PageTitle title="Salg" hint="Læg salg på gæsternes regninger, og find tidligere regninger, salg og ordrer." actions={
-        <div className="flex rounded-lg border p-0.5" role="tablist">
-          {([['new', 'Nyt salg'], ['history', 'Historik']] as const).map(([t, l]) => <Button key={t} size="sm" role="tab" aria-selected={tab === t} variant={tab === t ? 'default' : 'ghost'} onClick={() => setTab(t)}>{l}</Button>)}
-        </div>} />
-      {tab === 'new' ? <NewSale /> : <HistoryView />}
-    </>
-  );
+export function SalesSection({ page }: { page: string }) {
+  return page === 'history'
+    ? <><PageTitle title="Regninger & historik" hint="Find tidligere regninger, salg og ordrer via gæst, værelse eller dato." /><HistoryView /></>
+    : <><PageTitle title="Nyt salg" hint="Læg salg på en eller flere gæsters regning." /><NewSale /></>;
 }

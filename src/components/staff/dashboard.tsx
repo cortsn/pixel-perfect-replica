@@ -14,8 +14,8 @@ export function DashboardPage() {
     <>
       <PageTitle title={me ? `Hej ${me.name.split(' ')[0]}` : 'Dashboard'} hint={new Date().toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'long' })} />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat label="Ankomster i dag" icon={LogIn} value={dash.arrivals.length} sub={`${arrivalsLeft} ikke tjekket ind`} onClick={() => go('guests')} />
-        <Stat label="Afrejser i dag" icon={LogOut} value={dash.departures.length} sub={`${departuresLeft} mangler checkout`} onClick={() => go('guests')} />
+        <Stat label="Ankomster i dag" icon={LogIn} value={dash.arrivals.length} sub={`${arrivalsLeft} ikke tjekket ind`} onClick={() => go('guests', 'arrivals')} />
+        <Stat label="Afrejser i dag" icon={LogOut} value={dash.departures.length} sub={`${departuresLeft} mangler checkout`} onClick={() => { go('guests', 'arrivals'); }} />
         <div className={card}>
           <div className="flex items-center justify-between"><p className="text-sm text-muted-foreground">Belægning</p><BedDouble className="h-4 w-4 text-muted-foreground" /></div>
           <p className="mt-2 font-display text-4xl leading-none tabular-nums">{pct}%</p>
@@ -27,7 +27,7 @@ export function DashboardPage() {
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <Stat label="Uafsluttede opgaver" icon={ClipboardCheck} value={dash.open_tasks} tone={dash.open_tasks > 0 ? 'warn' : 'ok'} sub={`${dash.rooms_to_clean} værelser skal rengøres`} onClick={() => go('tasks')} />
-        <Stat label="Nye roomserviceordrer" icon={UtensilsCrossed} value={dash.new_orders} tone={dash.new_orders > 0 ? 'warn' : 'ok'} sub={`${dash.open_orders} åbne i alt`} onClick={() => go('roomservice')} />
+        <Stat label="Nye roomserviceordrer" icon={UtensilsCrossed} value={dash.new_orders} tone={dash.new_orders > 0 ? 'warn' : 'ok'} sub={`${dash.open_orders} åbne i alt`} onClick={() => go('orders')} />
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr_18rem]">
@@ -61,10 +61,10 @@ export function DashboardPage() {
           <h2 className="text-xl">Hurtige handlinger</h2>
           <div className="mt-3 grid gap-2">
             <Button onClick={() => go('sales')}><Receipt />Nyt salg</Button>
-            <Button variant="outline" onClick={() => go('guests')}><LogOut />Tjek en gæst ud</Button>
-            <Button variant="outline" onClick={() => go('roomservice')}><UtensilsCrossed />Se ordrer</Button>
+            <Button variant="outline" onClick={() => go('guests', 'arrivals')}><LogOut />Ankomster & afrejser</Button>
+            <Button variant="outline" onClick={() => go('orders')}><UtensilsCrossed />Se ordrer</Button>
             <Button variant="outline" onClick={() => go('tasks')}><ClipboardCheck />Rengøring</Button>
-            <Button variant="outline" onClick={() => go('reservations')}><CalendarPlus />Ny reservation</Button>
+            <Button variant="outline" onClick={() => go('guests', 'reservations')}><CalendarPlus />Ny reservation</Button>
           </div>
         </section>
       </div>

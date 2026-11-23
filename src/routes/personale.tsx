@@ -3,12 +3,15 @@ import { detectAppMode } from "@/lib/platform";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { StaffShell } from "@/components/staff/shell";
-import { isSection, type Section } from "@/components/staff/core";
+import { resolveNav, type Section } from "@/components/staff/core";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/personale")({
-  validateSearch: (search: Record<string, unknown>): { s?: string } => (typeof search["s"] === "string" ? { s: search["s"] } : {}),
+  validateSearch: (search: Record<string, unknown>): { s?: string; p?: string } => ({
+    ...(typeof search["s"] === "string" ? { s: search["s"] } : {}),
+    ...(typeof search["p"] === "string" ? { p: search["p"] } : {}),
+  }),
   head: () => ({
     meta: [
       { property: "og:type", content: "website" },
@@ -27,8 +30,8 @@ function Staff() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
-  const { s } = Route.useSearch();
-  const section: Section = isSection(s) ? s : "dashboard";
+  const { s, p } = Route.useSearch();
+  const { section, page } = resolveNav(s, p);
 
   // Gæste-appen (installeret PWA / Capacitor) har ingen personaleadgang.
   useEffect(() => { if (detectAppMode()) navigate({ to: "/", replace: true }); }, [navigate]);
@@ -62,5 +65,5 @@ function Staff() {
       </div>
     );
   }
-  return <StaffShell pin={pin} section={section} onSection={(next) => navigate({ to: "/personale", search: { s: next }, replace: false })} onLogout={logout} />;
+  return <StaffShell pin={pin} section={section} page={page} onNavigate={(next: Section, nextPage?: string) => navigate({ to: "/personale", search: { s: next, ...(nextPage ? { p: nextPage } : {}) }, replace: false })} onLogout={logout} />;
 }

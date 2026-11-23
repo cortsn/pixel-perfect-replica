@@ -166,6 +166,28 @@ describe('demo-database: samme regler som SQL', () => {
     expect(d.new_orders).toBe((await call('staff_orders')).filter((o: { type: string; status: string }) => o.type === 'room_service' && o.status === 'pending').length);
   });
 
+  it('personalet kan tjekke gæster ind; før start starter opholdet nu', async () => {
+    const g = (await call('staff_guests')).find((x: { room_number: string }) => x.room_number === '303');
+    expect(g.in_house).toBe(false);
+    await call('staff_check_in', { _booking: g.id });
+    const after = (await call('staff_guests')).find((x: { id: string }) => x.id === g.id);
+    expect(after).toMatchObject({ in_house: true });
+    expect(after.checked_in_at).not.toBeNull();
+    expect(await fails('staff_check_in', { _booking: g.id })).toBe('ALREADY_CHECKED_IN');
+    expect((await call('staff_bill', { _booking: g.id })).booking.guest_email).toContain('@');
+  });
+
+  it('anmeldelser: gennemsnit, fordeling, filter og søgning', async () => {
+    const all = await call('staff_feedback', { _rating: null, _q: '' });
+    expect(all.count).toBe(4);
+    expect(all.distribution.map((d: { rating: number }) => d.rating)).toEqual([5, 4, 3, 2, 1]);
+    expect(all.items.every((i: { guest_name: string | null }) => i.guest_name)).toBe(true);
+    expect((await call('staff_feedback', { _rating: 5, _q: '' })).items).toHaveLength(2);
+    expect((await call('staff_feedback', { _rating: null, _q: 'morgenmad' })).items).toHaveLength(1);
+    demoGuest.rate(2, 'Støj');
+    expect((await call('staff_feedback', { _rating: null, _q: '' })).count).toBe(5);
+  });
+
   it('medarbejdere: unik kode og gyldig rolle', async () => {
     const id = await call('staff_member_save', { _id: null, _name: 'Mette', _role: 'kitchen', _new_pin: '5678', _active: true });
     expect(await fails('staff_member_save', { _id: null, _name: 'Y', _role: 'reception', _new_pin: '5678', _active: true })).toBe('PIN_TAKEN');

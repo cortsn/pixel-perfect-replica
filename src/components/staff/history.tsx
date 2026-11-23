@@ -49,7 +49,7 @@ export function HistoryView() {
           {kind === 'orders' && <><thead className="border-b text-muted-foreground"><tr>{['Tid', 'Værelse', 'Gæst', 'Ordre', 'Status', 'Beløb'].map(h => <th key={h} className={th}>{h}</th>)}</tr></thead>
             <tbody className="divide-y">{(rows as Ord[]).map(o => (
               <tr key={o.id}><td className="px-4 py-3 text-xs">{dayTime(o.created_at)}</td><td className="px-4 py-3 font-display text-xl">{o.room_number}</td><td className="px-4 py-3">{o.guest_name ?? '–'}</td>
-                <td className="max-w-xs px-4 py-3 break-words">{o.type === 'towels' ? 'Håndklæder' : o.details}</td><td className="px-4 py-3"><span className="rounded-full bg-secondary px-2 py-0.5 text-xs">{ORDER_LABELS[o.status] ?? o.status}</span></td>
+                <td className="max-w-xs px-4 py-3 break-words">{o.type === 'towels' ? 'Poolhåndklæder' : o.details}</td><td className="px-4 py-3"><span className="rounded-full bg-secondary px-2 py-0.5 text-xs">{ORDER_LABELS[o.status] ?? o.status}</span></td>
                 <td className="px-4 py-3 tabular-nums">{o.total_cents ? fmtDKK(o.total_cents) : '–'}</td></tr>))}</tbody></>}
           {rows.length === 0 && <tbody><tr><td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">{error ?? (loading ? 'Henter…' : 'Ingen resultater')}</td></tr></tbody>}
         </table>

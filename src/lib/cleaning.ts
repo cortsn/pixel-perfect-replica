@@ -81,9 +81,9 @@ export function todayAt(hhmm: string, base = new Date()) {
   return d;
 }
 
-/** Håndklæderne i en rengøringsbestilling er poolhåndklæder. Ved afrejse byttes alle håndklæder. Værelsets egne håndklæder byttes via håndklæde-bytte (opgave). */
+/** Almindelige værelseshåndklæder skiftes ved rengøring (alle ved afrejse). Poolhåndklæder bestilles separat som håndklæde-opgave. */
 export function towelText(r: Pick<CleaningRequest, "wants_towels" | "towel_count" | "kind">) {
-  if (r.kind === "checkout") return "Byt alle håndklæder";
+  if (r.kind === "checkout") return "Skift alle håndklæder";
   const n = r.towel_count ?? (r.wants_towels ? 1 : 0);
-  return n > 0 ? `Byt ${n} ${n === 1 ? "poolhåndklæde" : "poolhåndklæder"}` : "Ingen poolhåndklæder";
+  return n > 0 ? "Skift værelseshåndklæder" : "Ingen håndklædeskift";
 }

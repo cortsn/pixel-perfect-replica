@@ -43,3 +43,44 @@ describe('bill', () => {
     expect(g.map(x => x.value)).toEqual(['accommodation', 'minibar']); expect(g[1]!.subtotal).toBe(500); expect(g[0]!.subtotal).toBe(2000);
   });
 });
+
+import { towelText } from '@/lib/cleaning';
+import { cleaningNextAt, TOWEL_COOLDOWN_MS } from '@/lib/stay';
+import { resolveNav } from '@/components/staff/core';
+import { arrivalDue, departureDue, relativeTime, type GuestRow } from '@/components/staff/guests';
+
+describe('rengøring, navigation og ankomster', () => {
+  const t0 = Date.parse('2026-11-23T10:00:00Z');
+  it('rengøring: værelseshåndklæder skiftes; alle ved afrejse', () => {
+    expect(towelText({ wants_towels: true, towel_count: 2 })).toBe('Skift værelseshåndklæder');
+    expect(towelText({ wants_towels: true, towel_count: 2, kind: 'checkout' })).toBe('Skift alle håndklæder');
+    expect(towelText({ wants_towels: false, towel_count: 0 })).toBe('Ingen håndklædeskift');
+  });
+  it('rengøring kun 1 gang hver 12. time, men "ikke nået" kan bestilles igen', () => {
+    const req = (status: string) => ({ status, created_at: new Date(t0).toISOString() });
+    expect(cleaningNextAt(req('done'), t0 + 3600e3)).toBe(t0 + TOWEL_COOLDOWN_MS);
+    expect(cleaningNextAt(req('done'), t0 + TOWEL_COOLDOWN_MS)).toBeNull();
+    expect(cleaningNextAt(req('not_reached'), t0 + 1000)).toBeNull();
+    expect(cleaningNextAt(null, t0)).toBeNull();
+  });
+  it('gamle adresser og ukendte sider ender det rigtige sted', () => {
+    expect(resolveNav('roomservice')).toEqual({ section: 'orders', page: '' });
+    expect(resolveNav('reservations')).toEqual({ section: 'guests', page: 'reservations' });
+    expect(resolveNav('staff')).toEqual({ section: 'settings', page: 'staff' });
+    expect(resolveNav('guests', 'arrivals')).toEqual({ section: 'guests', page: 'arrivals' });
+    expect(resolveNav('guests', 'findes-ikke')).toEqual({ section: 'guests', page: 'overview' });
+    expect(resolveNav('ukendt')).toEqual({ section: 'dashboard', page: '' });
+  });
+  it('ankomster og afrejser inden for 2 timer', () => {
+    const g = (o: Partial<GuestRow>): GuestRow => ({ id: 'x', reference: 'R', room_number: '1', guest_name: 'G', guest_email: null, guests: 1, starts_at: new Date(t0).toISOString(), ends_at: new Date(t0 + 86400e3).toISOString(), checked_in_at: null, balance_cents: 0, in_house: false, ...o });
+    expect(arrivalDue(g({ starts_at: new Date(t0 + 90 * 60e3).toISOString() }), 'soon', t0)).toBe(true);
+    expect(arrivalDue(g({ starts_at: new Date(t0 + 150 * 60e3).toISOString() }), 'soon', t0)).toBe(false);
+    expect(arrivalDue(g({ starts_at: new Date(t0 - 10 * 60e3).toISOString() }), 'soon', t0)).toBe(true); // skulle være tjekket ind
+    expect(arrivalDue(g({ checked_in_at: new Date(t0).toISOString() }), 'all', t0)).toBe(false);
+    expect(departureDue(g({ in_house: true, ends_at: new Date(t0 + 100 * 60e3).toISOString() }), 'soon', t0)).toBe(true);
+    expect(departureDue(g({ in_house: true, ends_at: new Date(t0 + 5 * 3600e3).toISOString() }), 'soon', t0)).toBe(false);
+    expect(departureDue(g({ overdue: true, ends_at: new Date(t0 - 3600e3).toISOString() }), 'soon', t0)).toBe(true);
+    expect(departureDue(g({ in_house: false }), 'all', t0)).toBe(false);
+  });
+  it('tid til/siden', () => { expect(relativeTime(80 * 60e3)).toBe('om 1 t 20 min'); expect(relativeTime(-15 * 60e3)).toBe('for 15 min siden'); expect(relativeTime(10e3)).toBe('nu'); });
+});

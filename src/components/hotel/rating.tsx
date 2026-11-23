@@ -23,7 +23,7 @@ export function RatingForm({ busy, onSubmit }: { busy?: boolean; onSubmit: (rati
         {rating === 0 ? <span className="text-muted-foreground">Tryk på en stjerne for at vælge</span> : <>{rating} af 5 stjerner · {RATING_WORDS[rating]}</>}
       </p>
       <textarea value={comment} onChange={e => setComment(e.target.value.slice(0, 1000))} placeholder="Skriv gerne en kommentar (valgfri)" className="w-full rounded-md border bg-card p-2 text-sm" rows={3} />
-      <Button className="w-full" disabled={busy || rating === 0} onClick={() => onSubmit(rating, comment)}>{rating === 0 ? 'Vælg stjerner først' : 'Send rating'}</Button>
+      <Button className="w-full" disabled={busy || rating === 0} onClick={() => onSubmit(rating, comment)}>{rating === 0 ? 'Vælg stjerner først' : 'Send anmeldelse'}</Button>
     </div>
   );
 }

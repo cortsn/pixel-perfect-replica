@@ -1,23 +1,34 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
-import { BarChart3, BedDouble, CalendarDays, ClipboardCheck, LayoutDashboard, Receipt, Settings, UserCog, Users, UtensilsCrossed, type LucideIcon } from 'lucide-react';
+import { BarChart3, BedDouble, ClipboardCheck, ConciergeBell, LayoutDashboard, Receipt, Settings, Users, UtensilsCrossed, type LucideIcon } from 'lucide-react';
 import { rpc, subscribeRpcChanges } from '@/lib/cleaning';
 import { errorText } from '@/lib/hotel';
 
-export type Section = 'dashboard' | 'guests' | 'reservations' | 'rooms' | 'tasks' | 'sales' | 'roomservice' | 'stats' | 'staff' | 'settings';
-export const SECTIONS: { id: Section; label: string; icon: LucideIcon }[] = [
+export type Section = 'dashboard' | 'guests' | 'rooms' | 'tasks' | 'orders' | 'sales' | 'stats' | 'services' | 'settings';
+export type NavPage = { id: string; label: string };
+export type NavItem = { id: Section; label: string; icon: LucideIcon; pages?: NavPage[] };
+/** Sidebaren: logiske grupper. Grupper med undersider åbnes som dropdown. */
+export const NAV: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'guests', label: 'Gæster', icon: Users },
-  { id: 'reservations', label: 'Reservationer', icon: CalendarDays },
+  { id: 'guests', label: 'Gæster & ophold', icon: Users, pages: [{ id: 'overview', label: 'Gæster' }, { id: 'arrivals', label: 'Ankomster & afrejser' }, { id: 'reservations', label: 'Reservationer & tider' }] },
   { id: 'rooms', label: 'Værelser', icon: BedDouble },
-  { id: 'tasks', label: 'Opgaver', icon: ClipboardCheck },
-  { id: 'sales', label: 'Salg', icon: Receipt },
-  { id: 'roomservice', label: 'Roomservice', icon: UtensilsCrossed },
-  { id: 'stats', label: 'Statistik', icon: BarChart3 },
-  { id: 'staff', label: 'Medarbejdere', icon: UserCog },
-  { id: 'settings', label: 'Indstillinger', icon: Settings },
+  { id: 'tasks', label: 'Opgaver & rengøring', icon: ClipboardCheck, pages: [{ id: 'cleaning', label: 'Rengøring' }, { id: 'towels', label: 'Poolhåndklæder' }] },
+  { id: 'orders', label: 'Ordrer', icon: UtensilsCrossed },
+  { id: 'sales', label: 'Salg & regninger', icon: Receipt, pages: [{ id: 'new', label: 'Nyt salg' }, { id: 'history', label: 'Regninger & historik' }] },
+  { id: 'stats', label: 'Statistik', icon: BarChart3, pages: [{ id: 'overview', label: 'Oversigt' }, { id: 'reviews', label: 'Ratings & anmeldelser' }] },
+  { id: 'services', label: 'Hotellets services', icon: ConciergeBell, pages: [{ id: 'menu', label: 'Roomservice-menu' }, { id: 'hours', label: 'Åbningstider' }] },
+  { id: 'settings', label: 'Indstillinger', icon: Settings, pages: [{ id: 'general', label: 'Generelt' }, { id: 'staff', label: 'Medarbejdere' }, { id: 'prices', label: 'Værelsespriser' }] },
 ];
-export const isSection = (s: unknown): s is Section => SECTIONS.some(x => x.id === s);
+const LEGACY: Record<string, [Section, string?]> = { roomservice: ['orders'], reservations: ['guests', 'reservations'], staff: ['settings', 'staff'] };
+/** Finder gruppe og underside ud fra adressen. Gamle adresser (fx ?s=roomservice) virker stadig. */
+export function resolveNav(s?: string, p?: string): { section: Section; page: string } {
+  const legacy = s ? LEGACY[s] : undefined;
+  const id = (legacy?.[0] ?? s) as Section;
+  const item = NAV.find(n => n.id === id) ?? NAV[0]!;
+  const wanted = p ?? legacy?.[1];
+  const page = item.pages?.some(x => x.id === wanted) ? wanted! : item.pages?.[0]?.id ?? '';
+  return { section: item.id, page };
+}
 
 export type Dash = {
   arrivals: { id: string; room_number: string; guest_name: string; guests: number; starts_at: string; checked_in_at: string | null }[];
@@ -28,7 +39,7 @@ export type Dash = {
 export type Me = { name: string; role: 'manager' | 'reception' | 'kitchen' | 'housekeeping' };
 export const ROLE_LABELS: Record<Me['role'], string> = { manager: 'Leder', reception: 'Reception', kitchen: 'Køkken', housekeeping: 'Rengøring' };
 
-type Ctx = { pin: string; me: Me | null; dash: Dash | null; reloadDash: () => void; go: (s: Section) => void; openBill: (bookingId: string) => void };
+type Ctx = { pin: string; me: Me | null; dash: Dash | null; reloadDash: () => void; go: (s: Section, page?: string) => void; openBill: (bookingId: string) => void };
 const StaffCtx = createContext<Ctx | null>(null);
 export const StaffProvider = StaffCtx.Provider;
 export function useStaff() {

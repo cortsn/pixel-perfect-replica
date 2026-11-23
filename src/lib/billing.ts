@@ -15,7 +15,7 @@ export type BillItem = {
   order_id: string | null; paid: boolean; voided_at: string | null; void_reason: string | null; created_by: string; created_at: string;
 };
 export type BillBooking = {
-  id: string; reference: string; room_number: string; guest_name: string; guests: number; starts_at: string; ends_at: string;
+  id: string; reference: string; room_number: string; guest_name: string; guest_email?: string | null; guests: number; starts_at: string; ends_at: string;
   checked_in_at: string | null; checked_out_at: string | null; active: boolean; rate_cents: number;
 };
 export type Bill = { booking: BillBooking; items: BillItem[]; total_cents: number; paid_in_app_cents: number; due_cents: number };

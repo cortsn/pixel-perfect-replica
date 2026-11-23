@@ -81,7 +81,7 @@ function ItemEditor({ initial, cats, onClose, onSaved }: { initial: Form; cats: 
 }
 
 /** Hotellets egen menu: kategorier, varer, priser, billeder, varianter, tilvalg, tilgængelighed og åbningstider. */
-export function MenuAdmin() {
+export function MenuAdmin({ part = 'all' }: { part?: 'menu' | 'hours' | 'all' }) {
   const act = useAct();
   const { data, error, reload } = useStaffData<MenuData>('staff_menu');
   const [editing, setEditing] = useState<Form | null>(null);
@@ -132,15 +132,15 @@ export function MenuAdmin() {
 
   return (
     <div className="space-y-6">
-      <section className={`${card} flex flex-wrap items-end gap-x-6 gap-y-3`}>
+      {part !== 'menu' && <section className={`${card} flex flex-wrap items-end gap-x-6 gap-y-3`}>
         <div><h2 className="text-xl">Åbningstider</h2><p className="text-xs text-muted-foreground">Uden for åbningstiden kan gæster ikke bestille. Ens tider = døgnet rundt.</p></div>
         <label className="flex items-center gap-2 text-sm"><Switch checked={hours.enabled} onCheckedChange={enabled => setHours({ ...hours, enabled })} aria-label="Roomservice åben" />Roomservice slået til</label>
         <label className="text-sm">Åbner<input type="time" className={`${field} mt-1 block`} value={hours.opens} onChange={e => setHours({ ...hours, opens: e.target.value })} /></label>
         <label className="text-sm">Lukker<input type="time" className={`${field} mt-1 block`} value={hours.closes} onChange={e => setHours({ ...hours, closes: e.target.value })} /></label>
         <Button onClick={saveHours}>Gem åbningstider</Button>
-      </section>
+      </section>}
 
-      {cats.map((c, idx) => {
+      {part !== 'hours' && cats.map((c, idx) => {
         const items = data.items.filter(i => i.category_id === c.id).sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name));
         return (
           <section key={c.id} className={`${card} ${c.active ? '' : 'opacity-70'}`}>
@@ -169,10 +169,10 @@ export function MenuAdmin() {
         );
       })}
 
-      <form onSubmit={addCat} className={`${card} flex flex-wrap items-center gap-2`}>
+      {part !== 'hours' && <form onSubmit={addCat} className={`${card} flex flex-wrap items-center gap-2`}>
         <input aria-label="Ny kategori" placeholder="Ny kategori, fx Dessert" className={`${field} max-w-xs`} value={newCat} onChange={e => setNewCat(e.target.value)} maxLength={60} />
         <Button variant="outline"><Plus />Opret kategori</Button>
-      </form>
+      </form>}
       {editing && <ItemEditor initial={editing} cats={cats} onClose={() => setEditing(null)} onSaved={() => void reload()} />}
     </div>
   );
