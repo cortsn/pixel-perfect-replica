@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
+import { isDemoBackend } from '@/lib/cleaning';
 import { nextOrderStatus } from '@/lib/hotel';
 import { OrdersBoard, type BoardOrder } from '@/components/hotel/orders-board';
 import { MenuAdmin } from '@/components/staff/menu-admin';
@@ -11,6 +12,7 @@ function Orders() {
   const act = useAct();
   const { data, error, reload } = useStaffData<BoardOrder[]>('staff_orders', { _limit: 150 }, 5000);
   useEffect(() => {
+    if (isDemoBackend()) return;
     const ch = supabase.channel(`staff-orders-${Math.random().toString(36).slice(2)}`).on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => { void reload(); }).subscribe();
     return () => { void supabase.removeChannel(ch); };
   }, [reload]);

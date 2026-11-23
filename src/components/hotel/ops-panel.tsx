@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ShoppingBasket, Star } from 'lucide-react';
 import { MealsOverview } from '@/components/hotel/meals-overview';
-import { supabase } from '@/integrations/supabase/client';
+import { rpc } from '@/lib/cleaning';
 import { mealStats, purchaseSuggestions } from '@/lib/ops';
 
 type Booking = { guests: number; breakfast_choice?: string | null; lunch_choice?: string | null; dinner_choice: string | null; starts_at: string; ends_at: string; active: boolean };
@@ -12,7 +12,7 @@ export function OpsPanel({ pin, orders }: { pin: string; orders: OrderLite[] }) 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [feedback, setFeedback] = useState<Feedback[]>([]);
   const load = useCallback(async () => {
-    const { data } = await supabase.rpc('staff_pms', { _pin: pin });
+    const { data } = await rpc('staff_pms', { _pin: pin });
     const d = data as unknown as { bookings?: Booking[]; feedback?: Feedback[] } | null;
     setBookings(d?.bookings ?? []);
     setFeedback(d?.feedback ?? []);

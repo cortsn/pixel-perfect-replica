@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { RefreshCw, Mail, CalendarPlus, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
+import { rpc } from '@/lib/cleaning';
 import { errorText } from '@/lib/hotel';
 import { toast } from 'sonner';
 type Booking={id:string;reference:string;room_number:string;guest_name:string;guest_email:string|null;guests:number;starts_at:string;ends_at:string;active:boolean;dinner_choice:string|null};
@@ -10,9 +10,9 @@ type Pms={bookings:Booking[];emails:Email[]};
 export function PmsPanel({pin,rooms}:{pin:string;rooms:string[]}){
  const [data,setData]=useState<Pms>({bookings:[],emails:[]});const [busy,setBusy]=useState(false);const [email,setEmail]=useState<Email|null>(null);
  const [name,setName]=useState('');const [address,setAddress]=useState('');const [room,setRoom]=useState('');const [guests,setGuests]=useState(2);const [start,setStart]=useState('');const [end,setEnd]=useState('');
- const refresh=useCallback(async()=>{const {data,error}=await supabase.rpc('staff_pms',{_pin:pin});if(error){toast.error(errorText(error));return;}setData(data as unknown as Pms);},[pin]);
+ const refresh=useCallback(async()=>{const {data,error}=await rpc<Pms>('staff_pms',{_pin:pin});if(error){toast.error(errorText(error));return;}setData(data as unknown as Pms);},[pin]);
  useEffect(()=>{void refresh();},[refresh]);
- async function create(e:React.FormEvent){e.preventDefault();if(busy)return;setBusy(true);const {data,error}=await supabase.rpc('staff_mock_booking',{_pin:pin,_name:name,_email:address,_room:room,_start:new Date(start).toISOString(),_end:new Date(end).toISOString(),_guests:guests});setBusy(false);if(error){toast.error(errorText(error));return;}toast.success(`Booking ${data} oprettet · Invitation simuleret`);setName('');setAddress('');await refresh();}
+ async function create(e:React.FormEvent){e.preventDefault();if(busy)return;setBusy(true);const {data,error}=await rpc<string>('staff_mock_booking',{_pin:pin,_name:name,_email:address,_room:room,_start:new Date(start).toISOString(),_end:new Date(end).toISOString(),_guests:guests});setBusy(false);if(error){toast.error(errorText(error));return;}toast.success(`Booking ${data} oprettet · Invitation simuleret`);setName('');setAddress('');await refresh();}
  const active=data.bookings.filter(b=>b.active&&Date.parse(b.ends_at)>Date.now());
  return <section className="border-t px-6 py-8 lg:px-8"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="eyebrow text-brass">PMS & gæstekommunikation · Simulation</p><h2 className="mt-1 text-3xl">Bookinger og invitationer</h2></div><Button variant="outline" onClick={refresh}><RefreshCw/>Indlæs bookinger</Button></div>
  <div className="my-5 flex flex-wrap items-center gap-3 border-y py-4 text-sm"><span>Hotellets bookingsystem</span><ArrowRight className="h-4 w-4 text-brass"/><span>HotelPilot · {active.length} aktive bookinger</span><ArrowRight className="h-4 w-4 text-brass"/><span>Automatisk invitation</span></div>

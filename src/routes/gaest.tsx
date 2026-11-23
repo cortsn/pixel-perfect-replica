@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { KeyRound, Utensils, Sparkles, Map, Share2, Wifi, Minus, Plus, Leaf, Check, X, ShowerHead, ClipboardList, CalendarDays, DoorOpen, ReceiptText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageCard, SettingsGroup, SettingsRow, SubPage } from '@/components/hotel/settings-ui';
+import { StatusPill } from '@/components/hotel/status-pill';
 import { HotelMap } from '@/components/hotel/hotel-map';
 import { supabase } from '@/integrations/supabase/client';
 import { clearSession, guestCheckIn, guestJoin, guestSession, listStored, loadStored, saveSession, setActiveStored, MEAL_FIELD, type Meal, errorText, HOUSEKEEPING_LABELS, ORDER_LABELS, type GuestSession, type OrderStatus } from '@/lib/hotel';
@@ -110,4 +111,3 @@ function GuestDashboard(){
  </SubPage>}
  </div>;
 }
-export function StatusPill({status}:{status:OrderStatus}){return <span className={`shrink-0 rounded-full px-2 py-1 text-xs ${status==='done'?'bg-status-clean/15 text-status-clean':status==='cancelled'?'bg-muted text-muted-foreground':status==='rejected'?'bg-destructive/15 text-destructive':status==='accepted'?'bg-primary/15 text-primary':status==='ready'?'bg-status-occupied/20 text-foreground':status==='in_progress'?'bg-status-cleaning/25 text-foreground':'bg-status-dirty/15 text-status-dirty'}`}>{ORDER_LABELS[status]}</span>;}

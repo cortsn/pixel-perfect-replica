@@ -58,9 +58,19 @@ export function sortCleaning<T extends Pick<CleaningRequest, "away_until" | "cre
   return [...list].sort((a, b) => Number(!!b.is_repeat) - Number(!!a.is_repeat) || key(a) - key(b) || Date.parse(a.created_at) - Date.parse(b.created_at));
 }
 
+type RpcResult<T> = { data: T | null; error: { message?: string } | null };
+type RpcBackend = { call: (name: string, args: Record<string, unknown>) => Promise<RpcResult<unknown>>; subscribe: (listener: () => void) => () => void };
+let backend: RpcBackend | null = null;
+/** Bruges af /demo: personalesiden taler så med en database i browseren i stedet for Supabase. */
+export function setRpcBackend(b: RpcBackend | null) { backend = b; }
+export const isDemoBackend = () => backend !== null;
+/** Lyt efter ændringer i demo-databasen. Giver null, når der bruges den rigtige database. */
+export function subscribeRpcChanges(listener: () => void): (() => void) | null { return backend ? backend.subscribe(listener) : null; }
+
 /** Kalde-hjælper, så koden virker, før de genererede databasetyper kender de nye funktioner. */
-export function rpc<T = unknown>(name: string, args: Record<string, unknown>) {
-  return supabase.rpc(name as never, args as never) as unknown as Promise<{ data: T | null; error: { message?: string } | null }>;
+export function rpc<T = unknown>(name: string, args: Record<string, unknown>): Promise<RpcResult<T>> {
+  if (backend) return backend.call(name, args) as Promise<RpcResult<T>>;
+  return supabase.rpc(name as never, args as never) as unknown as Promise<RpcResult<T>>;
 }
 
 /** Dato i dag (lokal tid) med klokkeslæt "HH:MM". */

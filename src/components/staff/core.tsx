@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { BarChart3, BedDouble, CalendarDays, ClipboardCheck, LayoutDashboard, Receipt, Settings, UserCog, Users, UtensilsCrossed, type LucideIcon } from 'lucide-react';
-import { rpc } from '@/lib/cleaning';
+import { rpc, subscribeRpcChanges } from '@/lib/cleaning';
 import { errorText } from '@/lib/hotel';
 
 export type Section = 'dashboard' | 'guests' | 'reservations' | 'rooms' | 'tasks' | 'sales' | 'roomservice' | 'stats' | 'staff' | 'settings';
@@ -55,9 +55,10 @@ export function useStaffData<T>(name: string, extra: Record<string, unknown> = {
   }, [name, pin, key]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     void load();
-    if (!intervalMs) return;
+    const unsub = subscribeRpcChanges(() => { void load(); }); // demo: opdater med det samme, når noget ændres
+    if (!intervalMs) return () => { unsub?.(); };
     const t = setInterval(() => { if (!document.hidden) void load(); }, intervalMs);
-    return () => clearInterval(t);
+    return () => { clearInterval(t); unsub?.(); };
   }, [load, intervalMs]);
   return { data, error, loading, reload: load };
 }
