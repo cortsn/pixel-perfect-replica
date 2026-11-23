@@ -3,6 +3,7 @@ import { Check, Clock, Minus, Plus, ReceiptText, ShoppingBag } from 'lucide-reac
 import { Button } from '@/components/ui/button';
 import { HotelModal } from '@/components/hotel/modal';
 import { fmtDKK } from '@/lib/money';
+import { useMenuImage } from '@/lib/menu-images';
 import { MAX_QTY, addToCart, cartCount, cartTotal, hoursText, lineLabel, setLineQty, toOrderLines, unitPrice, type CartLine, type GuestMenu, type MenuItem } from '@/lib/menu';
 
 type Lines = ReturnType<typeof toOrderLines>;
@@ -18,7 +19,8 @@ function Stepper({ n, name, onChange }: { n: number; name: string; onChange: (n:
   );
 }
 
-function Thumb({ src }: { src: string | null }) {
+function Thumb({ item }: { item: MenuItem }) {
+  const src = useMenuImage(item);
   const [bad, setBad] = useState(false);
   if (!src || bad) return null;
   return <img src={src} alt="" loading="lazy" width={64} height={64} onError={() => setBad(true)} className="h-16 w-16 shrink-0 rounded-lg object-cover" />;
@@ -140,7 +142,7 @@ export function RoomService({ room, menu, busy, onSubmit }: { room: string; menu
           const inCart = cart.filter(l => l.item.id === i.id).reduce((s, l) => s + l.qty, 0);
           return (
             <li key={i.id} className={`flex items-center gap-3 py-3 ${avail ? '' : 'opacity-60'}`}>
-              <Thumb src={i.image_url} />
+              <Thumb item={i} />
               <span className="min-w-0 flex-1">
                 <span className="block break-words font-semibold">{i.name}</span>
                 {i.description && <span className="block text-xs text-muted-foreground">{i.description}</span>}

@@ -6,7 +6,7 @@ import { BILL_CATEGORIES, categoryLabel, lineTotal, type BillCategory } from '@/
 import { centsToInput, fmtDKK, parseDKK } from '@/lib/money';
 import { PageTitle, card, field, hm, todayIso, useAct, useStaff, useStaffData } from '@/components/staff/core';
 import type { GuestRow } from '@/components/staff/guests';
-import { HistoryView } from '@/components/staff/history';
+import { BillHistory, BillsPage } from '@/components/staff/bills';
 
 type MenuData = { categories: { id: string; name: string; active: boolean }[]; items: { id: string; category_id: string; name: string; price_cents: number; active: boolean }[] };
 type SaleLine = { key: string; description: string; qty: number; price: string };
@@ -144,7 +144,7 @@ function NewSale() {
 }
 
 export function SalesSection({ page }: { page: string }) {
-  return page === 'history'
-    ? <><PageTitle title="Regninger & historik" hint="Find tidligere regninger, salg og ordrer via gæst, værelse eller dato." /><HistoryView /></>
-    : <><PageTitle title="Nyt salg" hint="Læg salg på en eller flere gæsters regning." /><NewSale /></>;
+  if (page === 'bills') return <BillsPage />;
+  if (page === 'history') return <BillHistory />;
+  return <><PageTitle title="Nyt salg" hint="Læg salg på en eller flere gæsters regning." /><NewSale /></>;
 }

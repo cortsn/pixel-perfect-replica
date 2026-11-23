@@ -9,6 +9,8 @@ import { PageBoundary } from '@/components/staff/boundary';
 import { Logo } from '@/components/hotel/logo';
 import { NAV, ROLE_LABELS, StaffProvider, type Dash, type Me, type Section } from '@/components/staff/core';
 import { BillDialog } from '@/components/staff/bill-dialog';
+import { CheckoutDialog } from '@/components/staff/checkout-dialog';
+import { GuestInfoDialog } from '@/components/staff/guest-info';
 import { DashboardPage } from '@/components/staff/dashboard';
 import { GuestsSection } from '@/components/staff/guests';
 import { RoomsPage } from '@/components/staff/rooms';
@@ -79,6 +81,8 @@ export function StaffShell({ pin, section, page, onNavigate, onLogout, demoBar }
   const [dash, setDash] = useState<Dash | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [billFor, setBillFor] = useState<string | null>(null);
+  const [guestFor, setGuestFor] = useState<string | null>(null);
+  const [checkoutFor, setCheckoutFor] = useState<string | null>(null);
 
   const reloadDash = useCallback(async () => {
     const { data } = await rpc<Dash>('staff_dashboard', { _pin: pin });
@@ -96,7 +100,7 @@ export function StaffShell({ pin, section, page, onNavigate, onLogout, demoBar }
         const { data } = await rpc<{ id: string; room_number: string; type: string; details: string; status: string }[]>('staff_orders', { _pin: pin, _limit: 30 });
         if (!data) return;
         data.forEach((o) => {
-          if (!seen.has(o.id) && !first && o.status === 'pending') toast(`Ny bestilling · Værelse ${o.room_number}`, { description: o.type === 'towels' ? 'Poolhåndklæder' : o.details });
+          if (!seen.has(o.id) && !first && o.status === 'pending') toast(`Ny bestilling · Værelse ${o.room_number}`, { description: o.type === 'towels' ? 'Håndklæder' : o.details });
           seen.add(o.id);
         });
         first = false;
@@ -109,7 +113,7 @@ export function StaffShell({ pin, section, page, onNavigate, onLogout, demoBar }
     const ch = supabase.channel(`staff-shell-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (p) => {
         const o = p.new as { room_number: string; type: string; details: string };
-        toast(`Ny bestilling · Værelse ${o.room_number}`, { description: o.type === 'towels' ? 'Poolhåndklæder' : o.details });
+        toast(`Ny bestilling · Værelse ${o.room_number}`, { description: o.type === 'towels' ? 'Håndklæder' : o.details });
         void reloadDash();
       })
       .subscribe();
@@ -117,7 +121,7 @@ export function StaffShell({ pin, section, page, onNavigate, onLogout, demoBar }
   }, [pin, reloadDash]);
 
   const go = useCallback((s: Section, p?: string) => { onNavigate(s, p); setMenuOpen(false); window.scrollTo({ top: 0 }); }, [onNavigate]);
-  const ctx = useMemo(() => ({ pin, me, dash, reloadDash: () => { void reloadDash(); }, go, openBill: setBillFor }), [pin, me, dash, reloadDash, go]);
+  const ctx = useMemo(() => ({ pin, me, dash, reloadDash: () => { void reloadDash(); }, go, openBill: setBillFor, openGuest: setGuestFor, openCheckout: setCheckoutFor }), [pin, me, dash, reloadDash, go]);
   const item = NAV.find(n => n.id === section);
   const pageLabel = item?.pages?.find(x => x.id === page)?.label;
   const title = item?.label ?? '';
@@ -156,6 +160,8 @@ export function StaffShell({ pin, section, page, onNavigate, onLogout, demoBar }
           </SheetContent>
         </Sheet>
         {billFor && <BillDialog bookingId={billFor} onClose={() => setBillFor(null)} />}
+        {guestFor && <GuestInfoDialog bookingId={guestFor} onClose={() => setGuestFor(null)} />}
+        {checkoutFor && <CheckoutDialog bookingId={checkoutFor} onClose={() => setCheckoutFor(null)} onOpenBill={() => setBillFor(checkoutFor)} />}
       </div>
     </StaffProvider>
   );

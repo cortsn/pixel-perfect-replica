@@ -5,7 +5,7 @@ import { PageTitle, Stat, card, hm, useStaff } from '@/components/staff/core';
 
 /** Hurtigt overblik: dagens ankomster og afrejser, belægning, opgaver, nye ordrer, omsætning og genveje. */
 export function DashboardPage() {
-  const { dash, go, openBill, me } = useStaff();
+  const { dash, go, openCheckout, me } = useStaff();
   if (!dash) return <p className="py-10 text-center text-sm text-muted-foreground">Henter overblik…</p>;
   const pct = dash.rooms_total ? Math.round((dash.occupied / dash.rooms_total) * 100) : 0;
   const arrivalsLeft = dash.arrivals.filter(a => !a.checked_in_at).length;
@@ -51,7 +51,7 @@ export function DashboardPage() {
                 <span className="min-w-0"><b>Værelse {d.room_number}</b> · {d.guest_name}<span className="block text-xs text-muted-foreground">senest {hm(d.ends_at)}</span></span>
                 {d.checked_out_at
                   ? <span className="shrink-0 rounded-full bg-status-clean/15 px-2 py-0.5 text-xs text-status-clean">Tjekket ud</span>
-                  : <Button size="sm" variant="outline" onClick={() => openBill(d.id)}>Regning</Button>}
+                  : <Button size="sm" variant="outline" onClick={() => openCheckout(d.id)}>Tjek ud</Button>}
               </li>
             ))}
             {dash.departures.length === 0 && <li className="py-4 text-center text-muted-foreground">Ingen afrejser i dag</li>}

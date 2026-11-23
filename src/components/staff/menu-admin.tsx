@@ -1,20 +1,64 @@
 import { useEffect, useState } from 'react';
-import { ArrowDown, ArrowUp, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ImagePlus, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { centsToInput, fmtDKK, parseDKK } from '@/lib/money';
+import { resizeImage, useMenuImage } from '@/lib/menu-images';
 import { card, field, useAct, useStaffData } from '@/components/staff/core';
 
 type Cat = { id: string; name: string; sort: number; active: boolean };
-type Item = { id: string; category_id: string; name: string; description: string; price_cents: number; image_url: string | null; active: boolean; sort: number; available_from: string | null; available_to: string | null; variants: { name: string; price_delta_cents: number }[]; addons: { name: string; price_cents: number }[] };
+type Item = { id: string; category_id: string; name: string; description: string; price_cents: number; image_url: string | null; image_ver?: number | null; active: boolean; sort: number; available_from: string | null; available_to: string | null; variants: { name: string; price_delta_cents: number }[]; addons: { name: string; price_cents: number }[] };
 type MenuData = { settings: { enabled: boolean; opens_at: string; closes_at: string } | null; categories: Cat[]; items: Item[] };
-type Form = { id: string | null; category_id: string; name: string; description: string; price: string; image_url: string; active: boolean; sort: string; from: string; to: string; variants: { name: string; price: string }[]; addons: { name: string; price: string }[] };
+type Form = { id: string | null; category_id: string; name: string; description: string; price: string; image_url: string; imageVer: number | null; upload: string | null; removeUpload: boolean; active: boolean; sort: string; from: string; to: string; variants: { name: string; price: string }[]; addons: { name: string; price: string }[] };
 
-const emptyForm = (category_id: string): Form => ({ id: null, category_id, name: '', description: '', price: '', image_url: '', active: true, sort: '0', from: '', to: '', variants: [], addons: [] });
-const toForm = (i: Item): Form => ({ id: i.id, category_id: i.category_id, name: i.name, description: i.description, price: centsToInput(i.price_cents), image_url: i.image_url ?? '', active: i.active, sort: String(i.sort), from: i.available_from ?? '', to: i.available_to ?? '',
+const emptyForm = (category_id: string): Form => ({ id: null, category_id, name: '', description: '', price: '', image_url: '', imageVer: null, upload: null, removeUpload: false, active: true, sort: '0', from: '', to: '', variants: [], addons: [] });
+const toForm = (i: Item): Form => ({ id: i.id, category_id: i.category_id, name: i.name, description: i.description, price: centsToInput(i.price_cents), image_url: i.image_url ?? '', imageVer: i.image_ver ?? null, upload: null, removeUpload: false, active: i.active, sort: String(i.sort), from: i.available_from ?? '', to: i.available_to ?? '',
   variants: i.variants.map(v => ({ name: v.name, price: centsToInput(v.price_delta_cents) })), addons: i.addons.map(a => ({ name: a.name, price: centsToInput(a.price_cents) })) });
+
+/** Lille billede i listen: uploadet billede, ellers webadresse, ellers en grå firkant. */
+function MenuThumb({ item }: { item: { id: string; image_url: string | null; image_ver?: number | null } }) {
+  const src = useMenuImage(item);
+  const [bad, setBad] = useState(false);
+  return src && !bad ? <img src={src} alt="" className="h-10 w-10 shrink-0 rounded-md object-cover" onError={() => setBad(true)} /> : <span className="h-10 w-10 shrink-0 rounded-md bg-secondary" />;
+}
+
+/** Vælg billede fra computeren (eller telefonen), eller indsæt en webadresse. */
+function ImagePicker({ form, onChange }: { form: Form; onChange: (f: Form) => void }) {
+  const stored = useMenuImage({ id: form.id ?? '', image_ver: form.imageVer, image_url: form.image_url });
+  const preview = form.upload ?? (form.removeUpload ? (form.image_url || null) : stored);
+  const [busy, setBusy] = useState(false);
+  async function pick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setBusy(true);
+    try { onChange({ ...form, upload: await resizeImage(file), removeUpload: false }); }
+    catch (err) { toast.error((err as Error).message); }
+    finally { setBusy(false); }
+  }
+  const hasAny = !!preview;
+  return (
+    <fieldset className="space-y-2">
+      <legend className="text-sm font-semibold">Billede</legend>
+      <div className="flex items-center gap-3">
+        <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-secondary text-xs text-muted-foreground">
+          {preview ? <img src={preview} alt="Forhåndsvisning" className="h-full w-full object-cover" /> : 'Intet billede'}
+        </div>
+        <div className="flex flex-col gap-2">
+          <label className="inline-flex">
+            <input type="file" accept="image/*" className="sr-only" aria-label="Vælg billede fra computeren" onChange={pick} />
+            <span role="button" tabIndex={-1} className={`inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border bg-background px-3 text-sm font-medium hover:bg-accent ${busy ? 'pointer-events-none opacity-60' : ''}`}><ImagePlus className="h-4 w-4" />{busy ? 'Behandler…' : hasAny ? 'Skift billede' : 'Vælg billede fra computer'}</span>
+          </label>
+          {hasAny && <Button type="button" size="sm" variant="ghost" className="justify-start text-destructive" onClick={() => onChange({ ...form, upload: null, removeUpload: true, image_url: '' })}><Trash2 />Fjern billede</Button>}
+        </div>
+      </div>
+      <label className="block text-xs text-muted-foreground">Eller indsæt en webadresse til et billede<input type="url" placeholder="https://…" className={`${field} mt-1`} value={form.image_url} onChange={e => onChange({ ...form, image_url: e.target.value })} /></label>
+      <p className="text-xs text-muted-foreground">Billedet forkleines automatisk, så det hurtigt kan vises i gæsteappen.</p>
+    </fieldset>
+  );
+}
 
 function OptionRows({ label, hint, rows, onChange }: { label: string; hint: string; rows: { name: string; price: string }[]; onChange: (r: { name: string; price: string }[]) => void }) {
   return (
@@ -47,7 +91,11 @@ function ItemEditor({ initial, cats, onClose, onSaved }: { initial: Form; cats: 
     const addons = f.addons.map(a => ({ name: a.name.trim(), price_cents: parseDKK(a.price) }));
     if ([...variants, ...addons].some(o => !o.name) || variants.some(v => v.price_delta_cents === null) || addons.some(a => a.price_cents === null || a.price_cents < 0)) { toast.error('Alle varianter og tilvalg skal have navn og gyldig pris (tilvalg kan ikke være negative).'); return; }
     setBusy(true);
-    const r = await act('staff_menu_item_save', { _item: { id: f.id, category_id: f.category_id, name: f.name, description: f.description, price_cents: price, image_url: f.image_url, active: f.active, sort: Number(f.sort) || 0, available_from: f.from || null, available_to: f.to || null, variants, addons } }, f.id ? 'Varen er gemt' : 'Varen er oprettet');
+    const r = await act<string>('staff_menu_item_save', { _item: { id: f.id, category_id: f.category_id, name: f.name, description: f.description, price_cents: price, image_url: f.image_url, active: f.active, sort: Number(f.sort) || 0, available_from: f.from || null, available_to: f.to || null, variants, addons } }, f.id ? 'Varen er gemt' : 'Varen er oprettet');
+    if (r.ok && r.data) {
+      if (f.upload) { const ir = await act('staff_menu_item_image_set', { _item: r.data, _data: f.upload }); if (!ir.ok) { setBusy(false); return; } }
+      else if (f.removeUpload && f.imageVer) await act('staff_menu_item_image_remove', { _item: r.data });
+    }
     setBusy(false);
     if (r.ok) { onSaved(); onClose(); }
   }
@@ -63,7 +111,7 @@ function ItemEditor({ initial, cats, onClose, onSaved }: { initial: Form; cats: 
             <label className="block text-sm">Pris (kr)<input inputMode="decimal" className={`${field} mt-1`} value={f.price} onChange={e => setF({ ...f, price: e.target.value })} /></label>
             <label className="block text-sm">Kategori<select className={`${field} mt-1`} value={f.category_id} onChange={e => setF({ ...f, category_id: e.target.value })}>{cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
           </div>
-          <label className="block text-sm">Billede (webadresse)<input type="url" placeholder="https://…" className={`${field} mt-1`} value={f.image_url} onChange={e => setF({ ...f, image_url: e.target.value })} /></label>
+          <ImagePicker form={f} onChange={setF} />
           <div className="grid grid-cols-3 gap-3">
             <label className="block text-sm">Serveres fra<input type="time" className={`${field} mt-1`} value={f.from} onChange={e => setF({ ...f, from: e.target.value })} /></label>
             <label className="block text-sm">Serveres til<input type="time" className={`${field} mt-1`} value={f.to} onChange={e => setF({ ...f, to: e.target.value })} /></label>
@@ -154,7 +202,7 @@ export function MenuAdmin({ part = 'all' }: { part?: 'menu' | 'hours' | 'all' })
             <ul className="mt-2 divide-y">
               {items.map(i => (
                 <li key={i.id} className={`flex flex-wrap items-center gap-3 py-2.5 ${i.active ? '' : 'opacity-60'}`}>
-                  {i.image_url ? <img src={i.image_url} alt="" className="h-10 w-10 shrink-0 rounded-md object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} /> : <span className="h-10 w-10 shrink-0 rounded-md bg-secondary" />}
+                  <MenuThumb item={i} />
                   <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{i.name}</span>
                     <span className="text-xs text-muted-foreground">{fmtDKK(i.price_cents)}{i.variants.length ? ` · ${i.variants.length} varianter` : ''}{i.addons.length ? ` · ${i.addons.length} tilvalg` : ''}{i.available_from && i.available_to ? ` · ${i.available_from}–${i.available_to}` : ''}</span></span>
                   <Switch checked={i.active} onCheckedChange={a => toggleItem(i, a)} aria-label={`${i.name} aktiv`} />

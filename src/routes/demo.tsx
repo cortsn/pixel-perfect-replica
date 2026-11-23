@@ -82,7 +82,7 @@ function Demo() {
 }
 
 type GuestSheet = "towels" | "clean" | "food" | "orders" | "bill" | "meals" | "wifi" | "share" | "rooms" | null;
-const TITLES: Record<Exclude<GuestSheet, null>, string> = { towels: "Poolhåndklæder", clean: "Rengøring", food: "Room service", orders: "Dine bestillinger", bill: "Din regning", meals: "Vælg måltider", wifi: "Wi-Fi", share: "Del adgang", rooms: "Mine værelser" };
+const TITLES: Record<Exclude<GuestSheet, null>, string> = { towels: "Håndklæder", clean: "Rengøring", food: "Room service", orders: "Dine bestillinger", bill: "Din regning", meals: "Vælg måltider", wifi: "Wi-Fi", share: "Del adgang", rooms: "Mine værelser" };
 
 /** Gæstesiden i demoen: samme opbygning som den rigtige, men med demo-databasen som kilde. */
 function GuestDemo() {
@@ -93,6 +93,7 @@ function GuestDemo() {
   const [seen, setSeen] = useState<string | null>(null);
   const [rated, setRated] = useState(false);
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+  useEffect(() => { demoGuest.touch(); const t = setInterval(() => demoGuest.touch(), 30000); return () => clearInterval(t); }, []);
 
   const b = demoGuest.booking();
   const guests = b.guests;
@@ -139,10 +140,10 @@ function GuestDemo() {
         {notice}
         <section id="noegle" className="rounded-2xl border bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between"><p className="eyebrow text-muted-foreground">Digital nøgle · Værelse {b.room_number}</p><span className="flex items-center gap-1 text-xs text-status-clean"><Check className="h-4 w-4" />Aktiv</span></div>
-          <Button className="mt-3 h-16 w-full rounded-full bg-gradient-brass text-lg font-semibold text-accent-foreground shadow-soft" onClick={() => toast("Demo: dør ikke tilsluttet")}><KeyRound className="!h-6 !w-6" />Lås dør op</Button>
+          <Button className="mt-3 h-16 w-full rounded-full bg-gradient-brass text-lg font-semibold text-accent-foreground shadow-soft" onClick={() => { demoGuest.unlock(); toast("Demo: døren er låst op"); }}><KeyRound className="!h-6 !w-6" />Lås dør op</Button>
         </section>
         <SettingsGroup title="Bestil">
-          <SettingsRow Icon={ShowerHead} tone="primary" title="Poolhåndklæder" value={towelNext ? `Igen kl. ${hm(new Date(towelNext).toISOString())}` : `op til ${guests}`} onClick={() => { setQty(Math.max(1, Math.min(qty, guests))); setSheet("towels"); }} />
+          <SettingsRow Icon={ShowerHead} tone="primary" title="Håndklæder" value={towelNext ? `Igen kl. ${hm(new Date(towelNext).toISOString())}` : `op til ${guests}`} onClick={() => { setQty(Math.max(1, Math.min(qty, guests))); setSheet("towels"); }} />
           <SettingsRow Icon={Utensils} tone="brass" title="Room service" value={menu.settings && !menu.settings.open_now ? `Åbner ${menu.settings.opens_at}` : "Mad og drikke"} onClick={() => setSheet("food")} />
           <SettingsRow Icon={Sparkles} tone="clean" title="Rengøring" value={HOUSEKEEPING_LABELS[room.housekeeping_status]} onClick={() => setSheet("clean")} />
           <SettingsRow Icon={ReceiptText} tone="forest" title="Din regning" value={fmtDKK(bill.total_cents)} onClick={() => setSheet("bill")} />
@@ -161,15 +162,15 @@ function GuestDemo() {
 
       {sheet && <SubPage title={TITLES[sheet]} onBack={close}>
         {sheet === "towels" && <PageCard>
-          <p className="text-center text-sm text-muted-foreground">Hvor mange poolhåndklæder skal byttes?</p>
+          <p className="text-center text-sm text-muted-foreground">Hvor mange håndklæder skal byttes?</p>
           <div className="flex items-center justify-center gap-4">
             <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" aria-label="Færre håndklæder" disabled={qty <= 1} onClick={() => setQty(qty - 1)}><Minus /></Button>
             <span className="w-10 text-center text-3xl font-semibold leading-none tabular-nums" aria-label="Antal håndklæder">{qty}</span>
             <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" aria-label="Flere håndklæder" disabled={qty >= guests} onClick={() => setQty(qty + 1)}><Plus /></Button>
           </div>
-          <p className="text-center text-sm text-muted-foreground">Poolhåndklæder byttes og leveres til værelset. Du kan bestille op til {guests} ad gangen, 1 gang hver 12. time. Almindelige værelseshåndklæder skiftes ved rengøring.</p>
-          {towelNext && <p role="status" className="rounded-md bg-secondary p-3 text-sm">Du har allerede bestilt poolhåndklæder. Du kan bestille igen kl. {hm(new Date(towelNext).toISOString())}.</p>}
-          <Button className="w-full" disabled={!!towelNext} onClick={() => run(() => { demoGuest.orderTowels(qty); toast.success("Din bestilling er modtaget"); close(); })}>Bestil {qty} {qty === 1 ? "poolhåndklæde" : "poolhåndklæder"}</Button>
+          <p className="text-center text-sm text-muted-foreground">Her bestiller du poolhåndklæder. De byttes og leveres til værelset. Du kan bestille op til {guests} ad gangen, 1 gang hver 12. time. Almindelige værelseshåndklæder skiftes ved rengøring.</p>
+          {towelNext && <p role="status" className="rounded-md bg-secondary p-3 text-sm">Du har allerede bestilt håndklæder. Du kan bestille igen kl. {hm(new Date(towelNext).toISOString())}.</p>}
+          <Button className="w-full" disabled={!!towelNext} onClick={() => run(() => { demoGuest.orderTowels(qty); toast.success("Din bestilling er modtaget"); close(); })}>Bestil {qty} {qty === 1 ? "håndklæde" : "håndklæder"}</Button>
         </PageCard>}
         {sheet === "food" && <PageCard><RoomService room={b.room_number} menu={menu} onSubmit={(lines, note) => { try { demoGuest.orderMenu(lines, note); toast.success("Din bestilling er modtaget og lægges på din regning"); close(); return true; } catch (e) { toast.error(errorText(e as Error)); return false; } }} /></PageCard>}
         {sheet === "clean" && <>

@@ -12,13 +12,14 @@ export const categoryLabel = (c: string) => BILL_CATEGORIES.find(x => x.value ==
 
 export type BillItem = {
   id: string; category: BillCategory; description: string; quantity: number; unit_price_cents: number; source: 'staff' | 'order' | 'system';
-  order_id: string | null; paid: boolean; voided_at: string | null; void_reason: string | null; created_by: string; created_at: string;
+  order_id: string | null; paid: boolean; payment_id?: string | null; voided_at: string | null; void_reason: string | null; created_by: string; created_at: string;
 };
 export type BillBooking = {
   id: string; reference: string; room_number: string; guest_name: string; guest_email?: string | null; guests: number; starts_at: string; ends_at: string;
   checked_in_at: string | null; checked_out_at: string | null; active: boolean; rate_cents: number;
 };
-export type Bill = { booking: BillBooking; items: BillItem[]; total_cents: number; paid_in_app_cents: number; due_cents: number };
+export type BillPayment = { id: string; amount_cents: number; method: string; note: string; paid_by: string; kind: 'bill' | 'checkout'; created_at: string };
+export type Bill = { booking: BillBooking; items: BillItem[]; payments?: BillPayment[]; total_cents: number; paid_in_app_cents: number; due_cents: number };
 
 export const lineTotal = (i: Pick<BillItem, 'quantity' | 'unit_price_cents'>) => i.quantity * i.unit_price_cents;
 /** Annullerede poster tæller ikke med. */

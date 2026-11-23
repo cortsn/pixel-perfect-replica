@@ -13,7 +13,7 @@ type Stats = {
   rating_avg: number | null; rating_count: number; checkouts: number;
 };
 
-/** Statistik: omsætning, populære varer, ordrer og gæsternes ratings. */
+/** Statistik: omsætning, populære varer, ordrer og gæsternes anmeldelser. */
 export function StatsPage() {
   const { pin } = useStaff();
   const [days, setDays] = useState(14);
@@ -73,7 +73,7 @@ function ReviewsPage() {
   const total = data?.count ?? 0;
   return (
     <>
-      <PageTitle title="Ratings & anmeldelser" hint="Alt hvad gæsterne har skrevet efter deres ophold." />
+      <PageTitle title="Anmeldelser" hint="Alt hvad gæsterne har skrevet efter deres ophold." />
       {!data ? <p className="py-10 text-center text-sm text-muted-foreground">{error ?? 'Henter anmeldelser…'}</p> : (
         <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
           <aside className={`${card} self-start`}>
@@ -112,7 +112,7 @@ function ReviewsPage() {
   );
 }
 
-/** Statistik: dashboardet som hovedside og undersiden med ratings og anmeldelser. */
+/** Statistik: dashboardet som hovedside og undersiden med anmeldelser. */
 export function StatsSection({ page }: { page: string }) {
   return page === 'reviews' ? <ReviewsPage /> : <StatsPage />;
 }

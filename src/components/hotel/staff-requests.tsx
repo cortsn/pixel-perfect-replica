@@ -46,10 +46,7 @@ export function StaffRequestsView({ requests, now, busy, onCleaning: setCleaning
   return (
     <div>
       <section className="min-w-0">
-        <div className="flex items-baseline justify-between gap-2">
-          <h2 className="text-3xl">Rengøring</h2>
-          <span className="text-sm text-muted-foreground">{open.length} åbne · kortest tid først</span>
-        </div>
+        <p className="text-sm text-muted-foreground">{open.length} {open.length === 1 ? 'åben' : 'åbne'} · kortest tid først</p>
         <ul className="mt-4 space-y-3">
           {open.map(r => {
             const left = timeLeft(r, now);

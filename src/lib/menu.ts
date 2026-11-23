@@ -2,7 +2,7 @@
 export type Variant = { name: string; price_delta_cents: number };
 export type Addon = { name: string; price_cents: number };
 export type MenuItem = {
-  id: string; name: string; description: string; price_cents: number; image_url: string | null;
+  id: string; name: string; description: string; price_cents: number; image_url: string | null; image_ver?: number | null;
   variants: Variant[]; addons: Addon[]; available_now: boolean; available_from: string | null; available_to: string | null;
 };
 export type MenuCategory = { id: string; name: string; items: MenuItem[] };

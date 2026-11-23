@@ -19,9 +19,11 @@ type Cat = { id: string; name: string; sort: number; active: boolean };
 type Item = { id: string; category_id: string; name: string; description: string; price_cents: number; image_url: string | null; active: boolean; sort: number; available_from: string | null; available_to: string | null; variants: Variant[]; addons: Addon[] };
 type OrderLine = { item_id: string; name: string; qty: number; unit_cents: number };
 export type DemoOrder = { id: string; room_number: string; booking_id: string | null; type: 'towels' | 'room_service'; details: string; status: string; cancelled: boolean; quantity: number; items: OrderLine[]; total_cents: number; paid: boolean; reject_reason: string; created_at: string; updated_at: string };
-type Bill = { id: string; booking_id: string; room_number: string; category: string; description: string; quantity: number; unit_price_cents: number; source: 'staff' | 'order' | 'system'; order_id: string | null; order_line: number | null; paid: boolean; voided_at: string | null; void_reason: string | null; created_by: string; created_at: string };
+type Bill = { id: string; payment_id: string | null; booking_id: string; room_number: string; category: string; description: string; quantity: number; unit_price_cents: number; source: 'staff' | 'order' | 'system'; order_id: string | null; order_line: number | null; paid: boolean; voided_at: string | null; void_reason: string | null; created_by: string; created_at: string };
 type Cleaning = { id: string; booking_id: string; room_number: string; wants_towels: boolean; towel_count: number; away_from: string | null; away_until: string | null; status: 'requested' | 'in_progress' | 'done' | 'not_reached'; is_repeat: boolean; kind: 'guest' | 'checkout'; created_at: string; updated_at: string };
 type Checkout = { id: string; booking_id: string; reference: string; room_number: string; guest_name: string; guests: number; starts_at: string; ends_at: string; total_cents: number; paid_in_app_cents: number; due_cents: number; payment_method: string; note: string; items: Bill[]; checked_out_by: string; created_at: string };
+type Payment = { id: string; booking_id: string; room_number: string; amount_cents: number; method: string; note: string; paid_by: string; kind: 'bill' | 'checkout'; created_at: string };
+type Device = { id: string; booking_id: string; created_at: string; last_seen_at: string | null; last_unlock_at: string | null; unlock_count: number };
 type Member = { id: string; name: string; role: string; pin: string; active: boolean; created_at: string };
 
 export const DEMO_PIN = 'demo';
@@ -53,6 +55,7 @@ type State = {
   feedback: { id: string; booking_id: string; room_number: string; rating: number; comment: string; created_at: string }[];
   emails: { id: string; booking_id: string; recipient: string; subject: string; status: string; created_at: string }[];
   members: Member[]; wifi: { ssid: string; password: string };
+  payments: Payment[]; devices: Device[]; images: Record<string, { data: string; ver: number }>;
 };
 
 function seed(): State {
@@ -98,8 +101,8 @@ function seed(): State {
     ord({ room_number: '304', booking_id: 'b-HP-3004', type: 'room_service', details: '2× Kaffe & croissant', status: 'done', items: [line('i-kaffe', 'Kaffe & croissant', 2, 6500)], total_cents: 13000 }, 90),
   ];
   const bills: Bill[] = [
-    { id: uid('bi'), booking_id: 'b-HP-3004', room_number: '304', category: 'room_service', description: 'Kaffe & croissant', quantity: 2, unit_price_cents: 6500, source: 'order', order_id: orders[3]!.id, order_line: 1, paid: false, voided_at: null, void_reason: null, created_by: WHO, created_at: iso(now - 80 * M) },
-    { id: uid('bi'), booking_id: 'b-HP-2003', room_number: '203', category: 'minibar', description: 'Cola', quantity: 2, unit_price_cents: 3500, source: 'staff', order_id: null, order_line: null, paid: false, voided_at: null, void_reason: null, created_by: WHO, created_at: iso(now - 40 * M) },
+    { id: uid('bi'), payment_id: null, booking_id: 'b-HP-3004', room_number: '304', category: 'room_service', description: 'Kaffe & croissant', quantity: 2, unit_price_cents: 6500, source: 'order', order_id: orders[3]!.id, order_line: 1, paid: false, voided_at: null, void_reason: null, created_by: WHO, created_at: iso(now - 80 * M) },
+    { id: uid('bi'), payment_id: null, booking_id: 'b-HP-2003', room_number: '203', category: 'minibar', description: 'Cola', quantity: 2, unit_price_cents: 3500, source: 'staff', order_id: null, order_line: null, paid: false, voided_at: null, void_reason: null, created_by: WHO, created_at: iso(now - 40 * M) },
   ];
   const cleaning: Cleaning[] = [
     { id: uid('c'), booking_id: 'b-HP-2003', room_number: '203', wants_towels: true, towel_count: 2, away_from: iso(now - 60 * M), away_until: iso(now + 40 * M), status: 'requested', is_repeat: false, kind: 'guest', created_at: iso(now - 30 * M), updated_at: iso(now - 30 * M) },
@@ -111,7 +114,15 @@ function seed(): State {
     { id: uid('f'), booking_id: 'b-HP-2003', room_number: '203', rating: 5, comment: 'Fantastisk morgenmad og søde medarbejdere.', created_at: iso(now - 74 * H) },
     { id: uid('f'), booking_id: 'b-HP-3004', room_number: '304', rating: 3, comment: '', created_at: iso(now - 98 * H) },
   ];
-  return { rooms, bookings, orders, bills, cleaning, checkouts: [], cats, items, settings: { enabled: true, opens_at: '00:00', closes_at: '00:00' }, feedback, emails: [], members: [], wifi: { ssid: 'HotelPilot_Guest', password: 'Nordlys2026' } };
+  const dev = (booking_id: string, created: number, seen: number | null, unlocks = 0): Device => ({ id: uid('dv'), booking_id, created_at: iso(created), last_seen_at: seen === null ? null : iso(seen), last_unlock_at: unlocks ? iso(now - 3 * H) : null, unlock_count: unlocks });
+  const devices: Device[] = [
+    dev('b-HP-1001', now - 4 * M, now - 1 * M),
+    dev('b-HP-2001', now - 19 * H, now - 12 * M, 6), dev('b-HP-2001', now - 18 * H, now - 3 * H, 2),
+    dev('b-HP-2003', now - 5 * H, now - 25 * M, 3),
+    dev('b-HP-3002', now - 29 * H, now - 2 * H, 4),
+    dev('b-HP-3004', now - 8 * H, now - 5 * M, 5), dev('b-HP-3004', now - 7 * H, now - 40 * M, 1), dev('b-HP-3004', now - 6 * H, null),
+  ];
+  return { rooms, bookings, orders, bills, cleaning, checkouts: [], cats, items, settings: { enabled: true, opens_at: '00:00', closes_at: '00:00' }, feedback, emails: [], members: [], wifi: { ssid: 'HotelPilot_Guest', password: 'Nordlys2026' }, payments: [], devices, images: {} };
 }
 
 let S: State = seed();
@@ -131,6 +142,7 @@ function internalBill(id: string) {
   return {
     booking: { id: b.id, reference: b.reference, room_number: b.room_number, guest_name: b.guest_name, guest_email: b.guest_email, guests: b.guests, starts_at: b.starts_at, ends_at: b.ends_at, checked_in_at: b.checked_in_at, checked_out_at: b.checked_out_at, active: b.active, rate_cents: r.rate_cents },
     items: [...items].sort((a, c) => ts(a.created_at) - ts(c.created_at)),
+    payments: S.payments.filter(p => p.booking_id === id).sort((a, c) => ts(a.created_at) - ts(c.created_at)).map(p => ({ id: p.id, amount_cents: p.amount_cents, method: p.method, note: p.note, paid_by: p.paid_by, kind: p.kind, created_at: p.created_at })),
     total_cents: sum(live), paid_in_app_cents: sum(live.filter(i => i.paid)), due_cents: sum(live.filter(i => !i.paid)),
   };
 }
@@ -141,7 +153,7 @@ function billAdd(booking: string, category: string, description: string, qty: nu
   if (!description || !description.trim()) err('INVALID_NAME');
   if (!Number.isInteger(qty) || qty < 1 || qty > 999) err('INVALID_QTY');
   if (!Number.isInteger(unit) || Math.abs(unit) > 10000000) err('INVALID_PRICE');
-  const row: Bill = { id: uid('bi'), booking_id: b.id, room_number: b.room_number, category, description: description.trim().slice(0, 200), quantity: qty, unit_price_cents: unit, source, order_id: null, order_line: null, paid: false, voided_at: null, void_reason: null, created_by: WHO, created_at: iso(Date.now()), ...extra };
+  const row: Bill = { id: uid('bi'), payment_id: null, booking_id: b.id, room_number: b.room_number, category, description: description.trim().slice(0, 200), quantity: qty, unit_price_cents: unit, source, order_id: null, order_line: null, paid: false, voided_at: null, void_reason: null, created_by: WHO, created_at: iso(Date.now()), ...extra };
   S.bills.push(row);
   return row.id;
 }
@@ -175,8 +187,9 @@ const H: Record<string, (a: Dict) => unknown> = {
   },
 
   staff_guests: () => S.bookings.filter(b => b.active && !b.checked_out_at && ts(b.ends_at) > Date.now() - 7 * 86400000).sort((a, c) => ts(a.starts_at) - ts(c.starts_at))
-    .map(b => ({ id: b.id, reference: b.reference, room_number: b.room_number, guest_name: b.guest_name, guest_email: b.guest_email, guests: b.guests, starts_at: b.starts_at, ends_at: b.ends_at, checked_in_at: b.checked_in_at, balance_cents: sum(liveItems(b.id)), in_house: ts(b.starts_at) <= Date.now() && ts(b.ends_at) > Date.now(), overdue: ts(b.starts_at) <= Date.now() && ts(b.ends_at) <= Date.now() })),
-
+    .map(b => { const due = sum(liveItems(b.id).filter(i => !i.paid)); return { id: b.id, reference: b.reference, room_number: b.room_number, guest_name: b.guest_name, guest_email: b.guest_email, guests: b.guests, starts_at: b.starts_at, ends_at: b.ends_at, checked_in_at: b.checked_in_at, balance_cents: due, due_cents: due, total_cents: sum(liveItems(b.id)),
+      open_orders: S.orders.filter(o => o.booking_id === b.id && o.type === 'room_service' && !o.cancelled && openOrderStatuses.includes(o.status)).length,
+      in_house: ts(b.starts_at) <= Date.now() && ts(b.ends_at) > Date.now(), overdue: ts(b.starts_at) <= Date.now() && ts(b.ends_at) <= Date.now() }; }),
   staff_rooms: () => S.rooms.map(r => {
     const b = S.bookings.find(x => x.room_number === r.number && isCurrent(x));
     const ov = S.bookings.find(x => x.room_number === r.number && x.active && !x.checked_out_at && ts(x.starts_at) <= Date.now() && ts(x.ends_at) <= Date.now() && ts(x.ends_at) > Date.now() - 7 * 86400000);
@@ -226,11 +239,59 @@ const H: Record<string, (a: Dict) => unknown> = {
       distribution: [5, 4, 3, 2, 1].map(r => ({ rating: r, n: all.filter(f => f.rating === r).length })), items };
   },
   staff_bill: a => internalBill(String(a['_booking'])),
+  staff_bill_pay: a => {
+    const b = bookingOf(String(a['_booking'])), method = String(a['_method'] ?? '').trim();
+    if (b.checked_out_at) err('BILL_CLOSED');
+    const due = sum(liveItems(b.id).filter(i => !i.paid));
+    if (due <= 0) err('NOTHING_DUE');
+    if (!method) err('PAYMENT_REQUIRED');
+    const id = uid('pay');
+    S.payments.push({ id, booking_id: b.id, room_number: b.room_number, amount_cents: due, method: method.slice(0, 80), note: String(a['_note'] ?? '').slice(0, 500), paid_by: WHO, kind: 'bill', created_at: iso(Date.now()) });
+    S.bills.filter(i => i.booking_id === b.id && !i.voided_at && !i.paid).forEach(i => { i.paid = true; i.payment_id = id; });
+    return id;
+  },
+  staff_payments: a => {
+    const q = String(a['_q'] ?? '').trim().toLowerCase(), from = a['_from'] ? String(a['_from']) : '0000-00-00', to = a['_to'] ? String(a['_to']) : '9999-99-99';
+    return [...S.payments].sort((x, y) => ts(y.created_at) - ts(x.created_at)).slice(0, 300).map(p => { const b = bookingOf(p.booking_id); return { ...p, guest_name: b.guest_name, reference: b.reference,
+      items: S.bills.filter(i => i.payment_id === p.id).map(i => ({ description: i.description, quantity: i.quantity, unit_price_cents: i.unit_price_cents, category: i.category })) }; })
+      .filter(p => `${p.guest_name} ${p.room_number} ${p.reference}`.toLowerCase().includes(q) && dayKey(ts(p.created_at)) >= from && dayKey(ts(p.created_at)) <= to);
+  },
+  staff_guest_info: a => {
+    const b = bookingOf(String(a['_booking'])), r = S.rooms.find(x => x.number === b.room_number)!;
+    const devs = S.devices.filter(d => d.booking_id === b.id).sort((x, y) => ts(x.created_at) - ts(y.created_at));
+    const orders = S.orders.filter(o => o.booking_id === b.id && !o.cancelled), cl = S.cleaning.filter(c => c.booking_id === b.id && c.kind === 'guest');
+    const fb = S.feedback.filter(f => f.booking_id === b.id).sort((x, y) => ts(y.created_at) - ts(x.created_at))[0] ?? null;
+    const timeline: { at: string; kind: string; text: string }[] = [
+      ...devs.map(d => ({ at: d.created_at, kind: 'device', text: 'Ny enhed tilknyttet rummet' })),
+      ...(b.checked_in_at ? [{ at: b.checked_in_at, kind: 'checkin', text: 'Tjekket ind' }] : []),
+      ...devs.filter(d => d.last_unlock_at).map(d => ({ at: d.last_unlock_at!, kind: 'unlock', text: `Låste døren op (i alt ${d.unlock_count} gange)` })),
+      ...orders.map(o => ({ at: o.created_at, kind: 'order', text: o.type === 'towels' ? `Bestilte ${o.quantity} håndklæder` : `Bestilte roomservice: ${o.details.slice(0, 90)}` })),
+      ...cl.map(c => ({ at: c.created_at, kind: 'cleaning', text: 'Bestilte rengøring' })),
+      ...S.feedback.filter(f => f.booking_id === b.id).map(f => ({ at: f.created_at, kind: 'review', text: `Skrev en anmeldelse (${f.rating} af 5)` })),
+    ].sort((x, y) => ts(y.at) - ts(x.at)).slice(0, 40);
+    return {
+      booking: { id: b.id, reference: b.reference, guest_name: b.guest_name, guest_email: b.guest_email, guests: b.guests, room_number: b.room_number, starts_at: b.starts_at, ends_at: b.ends_at, checked_in_at: b.checked_in_at, checked_out_at: b.checked_out_at, breakfast_choice: b.breakfast_choice, lunch_choice: b.lunch_choice, dinner_choice: b.dinner_choice },
+      room: { number: r.number, floor: r.floor, capacity: r.capacity, housekeeping_status: r.housekeeping_status },
+      devices: { count: devs.length, max: b.guests + 2, items: devs.map(d => ({ id: d.id, created_at: d.created_at, last_seen_at: d.last_seen_at, last_unlock_at: d.last_unlock_at, unlock_count: d.unlock_count })) },
+      activity: { orders_total: orders.length, orders_open: orders.filter(o => openOrderStatuses.includes(o.status)).length, cleaning_requests: cl.length, unlocks: devs.reduce((n, d) => n + d.unlock_count, 0),
+        last_seen_at: devs.map(d => d.last_seen_at).filter(Boolean).sort().at(-1) ?? null, review: fb ? { rating: fb.rating, comment: fb.comment, created_at: fb.created_at } : null, timeline },
+    };
+  },
+  staff_menu_item_image_set: a => {
+    if (!S.items.some(i => i.id === a['_item'])) err('NOT_FOUND');
+    const data = String(a['_data'] ?? '');
+    if (!data.startsWith('data:image/') || data.length > 450000) err('INVALID_IMAGE');
+    S.images[String(a['_item'])] = { data, ver: Date.now() };
+    return null;
+  },
+  staff_menu_item_image_remove: a => { delete S.images[String(a['_item'])]; return null; },
+  menu_item_image: a => S.images[String(a['_id'])]?.data ?? null,
   staff_bill_add: a => billAdd(String(a['_booking']), String(a['_category']), String(a['_description']), Number(a['_qty']), Number(a['_unit_cents'])),
   staff_bill_edit: a => {
     const it = S.bills.find(b => b.id === a['_item']) ?? err('NOT_FOUND');
     if (bookingOf(it.booking_id).checked_out_at) err('BILL_CLOSED');
     if (it.voided_at) err('ITEM_VOIDED');
+    if (it.paid) err('ITEM_PAID');
     const qty = Number(a['_qty']), unit = Number(a['_unit_cents']);
     if (!CATS.includes(String(a['_category']))) err('INVALID_CATEGORY');
     if (!String(a['_description'] ?? '').trim()) err('INVALID_NAME');
@@ -242,6 +303,7 @@ const H: Record<string, (a: Dict) => unknown> = {
   staff_bill_void: a => {
     const it = S.bills.find(b => b.id === a['_item']) ?? err('NOT_FOUND');
     if (bookingOf(it.booking_id).checked_out_at) err('BILL_CLOSED');
+    if (it.paid && !it.voided_at) err('ITEM_PAID');
     if (!it.voided_at) { it.voided_at = iso(Date.now()); it.void_reason = String(a['_reason'] ?? '').slice(0, 200); }
     return null;
   },
@@ -263,6 +325,7 @@ const H: Record<string, (a: Dict) => unknown> = {
     if (bill.due_cents > 0 && !method) err('PAYMENT_REQUIRED');
     const now = Date.now(), id = uid('co');
     S.checkouts.push({ id, booking_id: b.id, reference: b.reference, room_number: b.room_number, guest_name: b.guest_name, guests: b.guests, starts_at: b.starts_at, ends_at: iso(Math.min(ts(b.ends_at), now)), total_cents: bill.total_cents, paid_in_app_cents: bill.paid_in_app_cents, due_cents: bill.due_cents, payment_method: method.slice(0, 80), note: String(a['_note'] ?? '').slice(0, 500), items: bill.items, checked_out_by: WHO, created_at: iso(now) });
+    if (bill.due_cents > 0) { const pid = uid('pay'); S.payments.push({ id: pid, booking_id: b.id, room_number: b.room_number, amount_cents: bill.due_cents, method: method.slice(0, 80), note: String(a['_note'] ?? '').slice(0, 500), paid_by: WHO, kind: 'checkout', created_at: iso(now) }); S.bills.filter(i => i.booking_id === b.id && !i.voided_at && !i.paid).forEach(i => { i.paid = true; i.payment_id = pid; }); }
     b.checked_out_at = iso(now); b.ends_at = iso(Math.min(ts(b.ends_at), now));
     const room = S.rooms.find(r => r.number === b.room_number)!; room.housekeeping_status = 'needs_cleaning';
     const open = S.cleaning.filter(c => c.booking_id === b.id && ['requested', 'in_progress'].includes(c.status));
@@ -301,7 +364,7 @@ const H: Record<string, (a: Dict) => unknown> = {
   staff_menu: () => ({
     settings: { ...S.settings },
     categories: [...S.cats].sort((x, y) => x.sort - y.sort),
-    items: [...S.items].sort((x, y) => x.sort - y.sort),
+    items: [...S.items].sort((x, y) => x.sort - y.sort).map(i => ({ ...i, image_ver: S.images[i.id]?.ver ?? null })),
   }),
   staff_menu_category_save: a => {
     const name = String(a['_name'] ?? '').trim(); if (!name) err('INVALID_NAME');
@@ -325,7 +388,7 @@ const H: Record<string, (a: Dict) => unknown> = {
     Object.assign(i, row); if (typeof x['active'] === 'boolean') i.active = x['active']; if (x['sort'] != null) i.sort = Number(x['sort']);
     return i.id;
   },
-  staff_menu_item_delete: a => { S.items = S.items.filter(i => i.id !== a['_id']); return null; },
+  staff_menu_item_delete: a => { S.items = S.items.filter(i => i.id !== a['_id']); delete S.images[String(a['_id'])]; return null; },
   staff_roomservice_settings_save: a => { if (typeof a['_enabled'] === 'boolean') S.settings.enabled = a['_enabled']; if (a['_opens']) S.settings.opens_at = String(a['_opens']).slice(0, 5); if (a['_closes']) S.settings.closes_at = String(a['_closes']).slice(0, 5); return null; },
 
   staff_stays: () => S.bookings.filter(b => b.active && !b.checked_out_at && ts(b.ends_at) > Date.now()).sort((x, y) => ts(x.starts_at) - ts(y.starts_at))
@@ -392,12 +455,12 @@ const H: Record<string, (a: Dict) => unknown> = {
   staff_set_master_pin: () => null,
 };
 
-const MUTATING = /^(staff_(set|check_in|bill_add|bill_edit|bill_void|checkout|menu_.*(save|delete)|roomservice|member_(save|delete)|mock|room_rate))/;
+const MUTATING = /^(staff_(set|check_in|bill_pay|bill_add|menu_item_image|bill_edit|bill_void|checkout|menu_.*(save|delete)|roomservice|member_(save|delete)|mock|room_rate))/;
 
 /** Samme form som supabase.rpc, så personalesiden kan bruge den uændret. */
 export async function demoRpc<T = unknown>(name: string, args: Dict): Promise<{ data: T | null; error: { message?: string } | null }> {
   try {
-    if (args['_pin'] !== DEMO_PIN) err('FORBIDDEN');
+    if (name !== 'menu_item_image' && args['_pin'] !== DEMO_PIN) err('FORBIDDEN');
     const h = H[name] ?? err(`Funktionen ${name} findes ikke i demoen`);
     const out = h(args);
     if (MUTATING.test(name)) emit();
@@ -413,7 +476,7 @@ export const demoGuest = {
   menu: (): GuestMenu => ({
     settings: { enabled: S.settings.enabled, opens_at: S.settings.opens_at, closes_at: S.settings.closes_at, open_now: S.settings.enabled && inHours(S.settings.opens_at, S.settings.closes_at) },
     categories: [...S.cats].filter(c => c.active).sort((a, b) => a.sort - b.sort).map(c => ({ id: c.id, name: c.name, items: S.items.filter(i => i.category_id === c.id && i.active).sort((a, b) => a.sort - b.sort)
-      .map(i => ({ id: i.id, name: i.name, description: i.description, price_cents: i.price_cents, image_url: i.image_url, variants: i.variants, addons: i.addons, available_now: inHours(i.available_from, i.available_to), available_from: i.available_from, available_to: i.available_to })) })),
+      .map(i => ({ id: i.id, name: i.name, description: i.description, price_cents: i.price_cents, image_url: i.image_url, image_ver: S.images[i.id]?.ver ?? null, variants: i.variants, addons: i.addons, available_now: inHours(i.available_from, i.available_to), available_from: i.available_from, available_to: i.available_to })) })),
   }),
   orderMenu(lines: { item_id: string; qty: number; variant: string | null; addons: string[] }[], note: string) {
     const b = demoGuest.booking();
@@ -462,6 +525,9 @@ export const demoGuest = {
     S.rooms.find(r => r.number === b.room_number)!.housekeeping_status = 'needs_cleaning'; emit();
   },
   setMeal(meal: 'breakfast' | 'lunch' | 'dinner', choice: 'hotel' | 'out' | null) { demoGuest.booking()[`${meal}_choice` as const] = choice; emit(); },
+  /** Appen er åben: opdaterer 'sidst aktiv' for demo-gæstens enhed. */
+  touch() { const d = S.devices.find(x => x.booking_id === demoGuest.booking().id); if (d) { d.last_seen_at = iso(Date.now()); } },
+  unlock() { const d = S.devices.find(x => x.booking_id === demoGuest.booking().id); if (d) { d.last_unlock_at = iso(Date.now()); d.unlock_count++; d.last_seen_at = d.last_unlock_at; emit(); } },
   checkIn() { const b = demoGuest.booking(); b.checked_in_at = b.checked_in_at ?? iso(Date.now()); S.rooms.find(r => r.number === b.room_number)!.housekeeping_status = 'occupied'; emit(); },
   /** Demo: spol til opholdets start (ellers skal man vente 90 sek.) eller afslut opholdet uden regning. */
   resetTimes() { const b = demoGuest.booking(); b.starts_at = iso(Date.now() + 90000); b.checked_in_at = null; b.notice_kind = null; b.notice_at = null; emit(); },

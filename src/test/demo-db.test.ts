@@ -188,6 +188,61 @@ describe('demo-database: samme regler som SQL', () => {
     expect((await call('staff_feedback', { _rating: null, _q: '' })).count).toBe(5);
   });
 
+  it('betaling af regning uden checkout, med historik', async () => {
+    const g = await inHouse('203'); // har 70 kr. på regningen fra start
+    expect(g.balance_cents).toBe(7000);
+    expect(await fails('staff_bill_pay', { _booking: g.id, _method: '', _note: '' })).toBe('PAYMENT_REQUIRED');
+    const pid = await call('staff_bill_pay', { _booking: g.id, _method: 'Betalingsterminal', _note: 'ok' });
+    const bill = await call('staff_bill', { _booking: g.id });
+    expect(bill).toMatchObject({ due_cents: 0, paid_in_app_cents: 7000 });
+    expect(bill.items.every((i: { paid: boolean; payment_id: string }) => i.paid && i.payment_id === pid)).toBe(true);
+    expect(bill.booking.checked_out_at).toBeNull();
+    expect(await fails('staff_bill_pay', { _booking: g.id, _method: 'Kontant', _note: '' })).toBe('NOTHING_DUE');
+    expect(await fails('staff_bill_edit', { _item: bill.items[0].id, _category: 'minibar', _description: 'x', _qty: 1, _unit_cents: 1 })).toBe('ITEM_PAID');
+    expect(await fails('staff_bill_void', { _item: bill.items[0].id, _reason: '' })).toBe('ITEM_PAID');
+    expect((await inHouse('203')).balance_cents).toBe(0);
+    await call('staff_bill_add', { _booking: g.id, _category: 'minibar', _description: 'Vand', _qty: 1, _unit_cents: 2500 });
+    const pays = await call('staff_payments', { _q: 'holm', _from: null, _to: null });
+    expect(pays).toHaveLength(1);
+    expect(pays[0]).toMatchObject({ amount_cents: 7000, method: 'Betalingsterminal', guest_name: 'Maria Holm', kind: 'bill' });
+    expect(pays[0].items).toHaveLength(1);
+    expect(await call('staff_payments', { _q: 'findes-ikke', _from: null, _to: null })).toHaveLength(0);
+    // checkout betaler kun resten og kommer i historikken
+    await call('staff_checkout', { _booking: g.id, _method: 'Kontant', _note: '' });
+    const after = await call('staff_payments', { _q: '203', _from: null, _to: null });
+    expect(after).toHaveLength(2);
+    expect(after.find((p: { kind: string }) => p.kind === 'checkout')).toMatchObject({ amount_cents: 2500 });
+  });
+
+  it('gæsteinfo: personer, enheder, aktivitet og tidslinje', async () => {
+    const holm = demoStore._state().bookings.find(b => b.room_number === '304')!;
+    const info = await call('staff_guest_info', { _booking: holm.id });
+    expect(info.booking).toMatchObject({ guests: 4, room_number: '304' });
+    expect(info.devices).toMatchObject({ count: 3, max: 6 });
+    expect(info.activity.unlocks).toBe(6);
+    expect(info.activity.timeline.length).toBeGreaterThan(3);
+    expect(info.activity.timeline.some((t: { kind: string }) => t.kind === 'unlock')).toBe(true);
+    demoGuest.checkIn(); demoGuest.unlock(); demoGuest.orderTowels(1);
+    const anna = await call('staff_guest_info', { _booking: demoGuest.booking().id });
+    expect(anna.devices.count).toBe(1);
+    expect(anna.activity).toMatchObject({ unlocks: 1, orders_total: 1 });
+    expect(anna.activity.timeline.some((t: { text: string }) => /1 håndklæder/.test(t.text))).toBe(true);
+  });
+
+  it('billeder til menuvarer: upload, version og fjern', async () => {
+    const png = 'data:image/png;base64,iVBORw0KGgo=';
+    expect(await fails('staff_menu_item_image_set', { _item: 'i-club', _data: 'http://x' })).toBe('INVALID_IMAGE');
+    await call('staff_menu_item_image_set', { _item: 'i-club', _data: png });
+    const item = demoGuest.menu().categories.flatMap(c => c.items).find(i => i.id === 'i-club')!;
+    expect(typeof item.image_ver).toBe('number');
+    expect(Object.keys(item)).not.toContain('data');
+    expect((await demoRpc('menu_item_image', { _id: 'i-club' })).data).toBe(png);
+    expect((await call('staff_menu')).items.find((i: { id: string }) => i.id === 'i-club').image_ver).toBe(item.image_ver);
+    await call('staff_menu_item_image_remove', { _item: 'i-club' });
+    expect((await demoRpc('menu_item_image', { _id: 'i-club' })).data).toBeNull();
+    expect(demoGuest.menu().categories.flatMap(c => c.items).find(i => i.id === 'i-club')!.image_ver).toBeNull();
+  });
+
   it('medarbejdere: unik kode og gyldig rolle', async () => {
     const id = await call('staff_member_save', { _id: null, _name: 'Mette', _role: 'kitchen', _new_pin: '5678', _active: true });
     expect(await fails('staff_member_save', { _id: null, _name: 'Y', _role: 'reception', _new_pin: '5678', _active: true })).toBe('PIN_TAKEN');

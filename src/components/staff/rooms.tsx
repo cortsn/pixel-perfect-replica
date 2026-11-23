@@ -46,7 +46,7 @@ function RoomTile({ r, onOpen }: { r: Room; onOpen: () => void }) {
 /** Sidepanel med detaljer for ét værelse: gæst, status og problemer. */
 function RoomPanel({ room, onClose, onChanged }: { room: Room; onClose: () => void; onChanged: () => void }) {
   const act = useAct();
-  const { openBill } = useStaff();
+  const { openBill, openCheckout } = useStaff();
   const problems = roomProblems(room);
   async function setStatus(status: HousekeepingStatus) {
     const res = await act('staff_set_room_status', { _room: room.number, _status: status }, `Værelse ${room.number}: ${HOUSEKEEPING_LABELS[status]}`);
@@ -71,7 +71,7 @@ function RoomPanel({ room, onClose, onChanged }: { room: Room; onClose: () => vo
               : room.overdue_booking_id
                 ? <p className="mt-1 text-sm"><b>{room.overdue_guest}</b><span className="block text-muted-foreground">Check ud-tiden er overskredet. Tjek gæsten ud.</span></p>
                 : <p className="mt-1 text-sm text-muted-foreground">Ledigt lige nu.</p>}
-            {bookingId && <Button className="mt-3 w-full" variant={room.overdue_booking_id && !room.guest_name ? 'default' : 'outline'} onClick={() => { onClose(); openBill(bookingId); }}>Åbn regning / tjek ud</Button>}
+            {bookingId && <div className="mt-3 flex gap-2"><Button className="flex-1" variant="outline" onClick={() => { onClose(); openBill(bookingId); }}>Åbn regning</Button>{room.overdue_booking_id && !room.guest_name && <Button className="flex-1" onClick={() => { onClose(); openCheckout(bookingId); }}>Tjek ud</Button>}</div>}
           </section>
           <section>
             <h3 className="text-lg">Status</h3>
