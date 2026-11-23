@@ -3,7 +3,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { QRCodeSVG } from "qrcode.react";
-import { Check, ChevronDown, KeyRound, Minus, Plus, ShoppingBasket, Share2, Sparkles, Star, Utensils, Wifi } from "lucide-react";
+import { Check, ChevronDown, DoorOpen, KeyRound, Leaf, Minus, Plus, QrCode, ShoppingBasket, Share2, ShowerHead, Sparkles, Star, Utensils, Wifi } from "lucide-react";
+import { PageCard, SettingsGroup, SettingsRow, SubPage } from "@/components/hotel/settings-ui";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { shareLink } from "@/lib/share";
@@ -12,11 +13,10 @@ import { OrdersBoard, type BoardOrder } from "@/components/hotel/orders-board";
 import { nextOrderStatus, ORDER_LABELS, type Meal } from "@/lib/hotel";
 import { mealStats, purchaseSuggestions } from "@/lib/ops";
 import { MealsOverview } from "@/components/hotel/meals-overview";
-import { MealsCard, MealsForm } from "@/components/hotel/meals";
+import { MealsForm } from "@/components/hotel/meals";
 import { RatingForm } from "@/components/hotel/rating";
 import { RoomSwitcher } from "@/components/hotel/room-switcher";
 import { RoomService } from "@/components/hotel/room-service";
-import { HotelModal } from "@/components/hotel/modal";
 import { StaffRequestsView } from "@/components/hotel/staff-requests";
 import { CleaningForm, CleaningStatusNote } from "@/components/hotel/guest-requests";
 import { CheckInScreen, StayControlsView, StayEndTimer, StayNotice, WaitingScreen, type StayRow } from "@/components/hotel/stay";
@@ -169,13 +169,12 @@ function GuestDemo({ st }: { st: DemoState }) {
   const [qty, setQty] = useState(1);
   const [towelAt, setTowelAt] = useState<number | null>(null);
   const towelWait = towelAt && towelAt + TOWEL_COOLDOWN_MS > st.now ? towelAt + TOWEL_COOLDOWN_MS : null;
-  const [sheet, setSheet] = useState<"clean" | "meals" | "share" | "rooms" | null>(null);
+  const [sheet, setSheet] = useState<"towels" | "clean" | "food" | "meals" | "share" | "rooms" | "wifi" | "key" | null>(null);
   const [rated, setRated] = useState(false);
   const [seen, setSeen] = useState(0);
   const q = Math.min(qty, guests);
   const mine = [...st.cleaning].filter(c => c.room_number === "101").sort((a, b) => b.created_at.localeCompare(a.created_at))[0] ?? null;
   const mineOpen = mine && (mine.status === "requested" || mine.status === "in_progress");
-  const card = "rounded-2xl border bg-card p-5 shadow-sm";
   if (!me) return null;
   const notice = me.notice && me.noticeAt > seen ? <StayNotice kind={me.notice} startsAt={me.starts_at} endsAt={me.ends_at} onDismiss={() => setSeen(me.noticeAt)} /> : null;
   const resetTimes = () => st.setStays(l => l.map(x => x.id === "mine" ? { ...x, starts_at: new Date(Date.now() + 90000).toISOString(), checked_in_at: null, notice: null } : x));
@@ -188,78 +187,73 @@ function GuestDemo({ st }: { st: DemoState }) {
   );
   if (st.now < Date.parse(me.starts_at)) return <WaitingScreen name="Anna" startsAt={me.starts_at} clock={st.now} notice={notice} onLogout={resetTimes} />;
   if (!me.checked_in_at) return <CheckInScreen name="Anna" room="101" notice={notice} onLogout={resetTimes} onCheckIn={() => { st.setStays(l => l.map(x => x.id === "mine" ? { ...x, checked_in_at: new Date().toISOString() } : x)); toast("Du er tjekket ind. Velkommen!"); }} />;
+  const mealsChosen = [st.meals.breakfast, st.meals.lunch, st.meals.dinner].filter(Boolean).length;
+  const mealChoices = { breakfast_choice: st.meals.breakfast, lunch_choice: st.meals.lunch, dinner_choice: st.meals.dinner };
+  const TITLES = { towels: "Håndklæder", clean: "Rengøring", food: "Room service", share: "Del adgang", wifi: "Wi-Fi", meals: "Vælg måltider", rooms: "Mine værelser", key: "Digital nøgle" } as const;
   return (
-    <div className="mx-auto max-w-md space-y-4 px-4 pb-[calc(env(safe-area-inset-bottom)+7rem)]">
-      <header className="-mx-4 rounded-b-3xl bg-gradient-forest px-6 pb-8 pt-[calc(env(safe-area-inset-top)+1.75rem)] text-forest-foreground">
+    <div className="mx-auto max-w-md pb-[calc(env(safe-area-inset-bottom)+2rem)]">
+      <header className="rounded-b-3xl bg-gradient-forest px-6 pb-7 pt-[calc(env(safe-area-inset-top)+1.75rem)] text-forest-foreground">
         <Logo />
-        <p className="eyebrow mt-7 text-brass">Værelse 101</p>
+        <p className="eyebrow mt-6 text-brass">Værelse 101</p>
         <h1 className="mt-2 text-4xl">Velkommen, Anna</h1>
       </header>
-      {notice}
-      <section id="noegle" className={card}>
-        <div className="flex items-center justify-between"><h2 className="text-3xl">Digital nøgle</h2><span className="flex items-center gap-1 text-xs text-status-clean"><Check className="h-4 w-4" />Aktiv</span></div>
-        <Button className="mt-5 h-16 w-full rounded-full bg-gradient-brass text-lg font-semibold text-accent-foreground shadow-soft" onClick={() => toast("Demo: dør ikke tilsluttet")}><KeyRound className="!h-6 !w-6" />Lås dør op</Button>
-      </section>
-      <MealsCard choices={{ breakfast_choice: st.meals.breakfast, lunch_choice: st.meals.lunch, dinner_choice: st.meals.dinner }} onOpen={() => setSheet("meals")} />
-      <section id="service" className={card}>
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="flex items-center gap-2 text-xl"><Sparkles className="h-4 w-4 text-brass" />Håndklæder</h2>
-          <span className="text-xs text-muted-foreground">op til {guests} ad gangen</span>
-        </div>
-        <div className="mt-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
+      <main className="space-y-5 px-4 pt-4">
+        {notice}
+        <section id="noegle" className="rounded-2xl border bg-card p-4 shadow-sm">
+          <div className="flex items-center justify-between"><p className="eyebrow text-muted-foreground">Digital nøgle · Værelse 101</p><span className="flex items-center gap-1 text-xs text-status-clean"><Check className="h-4 w-4" />Aktiv</span></div>
+          <Button className="mt-3 h-16 w-full rounded-full bg-gradient-brass text-lg font-semibold text-accent-foreground shadow-soft" onClick={() => toast("Demo: dør ikke tilsluttet")}><KeyRound className="!h-6 !w-6" />Lås dør op</Button>
+          <button type="button" onClick={() => setSheet("key")} className="mt-3 flex w-full items-center justify-center gap-1.5 text-sm text-muted-foreground"><QrCode className="h-4 w-4" />Vis QR-nøgle</button>
+        </section>
+        <SettingsGroup title="Bestil">
+          <SettingsRow Icon={ShowerHead} tone="primary" title="Håndklæder" value={towelWait ? `Igen kl. ${hm(new Date(towelWait).toISOString())}` : `op til ${guests}`} onClick={() => setSheet("towels")} />
+          <SettingsRow Icon={Utensils} tone="brass" title="Room service" value="Mad og drikke" onClick={() => setSheet("food")} />
+          <SettingsRow Icon={Sparkles} tone="clean" title="Rengøring" value={mineOpen ? "Bestilt" : undefined} onClick={() => setSheet("clean")} />
+        </SettingsGroup>
+        <SettingsGroup title="Opholdet">
+          <SettingsRow Icon={Leaf} tone="clean" title="Vælg måltider" value={mealsChosen ? `${mealsChosen} valgt` : undefined} onClick={() => setSheet("meals")} />
+          <SettingsRow Icon={Wifi} tone="primary" title="Wi-Fi" onClick={() => setSheet("wifi")} />
+        </SettingsGroup>
+        <SettingsGroup>
+          <SettingsRow Icon={Share2} tone="brass" title="Del adgang" onClick={() => setSheet("share")} />
+          <SettingsRow Icon={DoorOpen} tone="forest" title="Mine værelser" onClick={() => setSheet("rooms")} />
+        </SettingsGroup>
+        <StayEndTimer endsAt={me.ends_at} clock={st.now} />
+      </main>
+      {sheet && <SubPage title={TITLES[sheet]} onBack={() => setSheet(null)}>
+        {sheet === "key" && <PageCard>
+          <div className="flex flex-col items-center gap-3"><div className="rounded-lg bg-forest p-4 text-forest-foreground"><QRCodeSVG value="HOTELPILOT-DEMO:101" size={200} bgColor="transparent" fgColor="currentColor" /></div><p className="text-center text-sm text-muted-foreground">Din digitale værelsesnøgle · simuleret dørlås</p></div>
+        </PageCard>}
+        {sheet === "towels" && <PageCard>
+          <p className="text-center text-sm text-muted-foreground">Hvor mange håndklæder skal byttes?</p>
+          <div className="flex items-center justify-center gap-4">
             <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" aria-label="Færre" disabled={q <= 1} onClick={() => setQty(q - 1)}><Minus /></Button>
-            <span className="w-6 text-center text-xl font-semibold tabular-nums">{q}</span>
+            <span className="w-10 text-center text-3xl font-semibold leading-none tabular-nums">{q}</span>
             <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" aria-label="Flere" disabled={q >= guests} onClick={() => setQty(q + 1)}><Plus /></Button>
           </div>
-          <Button disabled={!!towelWait} onClick={() => { setQty(1); setTowelAt(Date.now()); toast("Demo: bestilling ikke gemt"); }}>Bestil</Button>
-        </div>
-        {towelWait && <p role="status" className="mt-3 rounded-md bg-secondary p-3 text-sm">Du kan bestille håndklæder igen kl. {hm(new Date(towelWait).toISOString())} (1 gang hver 12. time).</p>}
-      </section>
-      <section id="rengoering" className={card}>
-        <h2 className="flex items-center gap-2 text-2xl"><Sparkles className="h-5 w-5 text-brass" />Rengøring</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Vælg om du vil have rengøring, og hvornår det passer.</p>
-        <CleaningStatusNote req={mine} />
-        {!mineOpen && <Button className="mt-4 h-12 w-full" variant="outline" onClick={() => setSheet("clean")}>{mine?.status === "not_reached" ? "Bestil rengøring igen" : "Bestil rengøring"}</Button>}
-      </section>
-      <section id="roomservice" className={card}>
-        <h2 className="flex items-center gap-2 text-2xl"><Utensils className="h-5 w-5 text-brass" />Room service</h2>
-        <div className="mt-3 space-y-3"><RoomService room="101" onSubmit={(d) => { toast(`Demo: ${d} — ikke sendt til køkkenet`); }} /></div>
-      </section>
-      <div className="grid grid-cols-2 gap-2">
-        <Button variant="outline" onClick={() => setSheet("share")}><Share2 />Del adgang</Button>
-        <Button variant="outline" onClick={() => setSheet("rooms")}>Mine værelser</Button>
-      </div>
-      <section id="wifi" className="rounded-2xl bg-gradient-forest p-5 text-forest-foreground">
-        <div className="flex items-center gap-2"><Wifi className="h-5 w-5 text-brass" /><h2 className="text-2xl">Wi-Fi</h2></div>
-        <p className="mt-2 text-sm opacity-80">Netværk og kode vises her, når du er logget ind som rigtig gæst.</p>
-      </section>
-      <StayEndTimer endsAt={me.ends_at} clock={st.now} />
-      <nav aria-label="Genveje" className="fixed inset-x-0 bottom-0 z-40 border-t bg-card/95 pb-[max(env(safe-area-inset-bottom),0.5rem)] backdrop-blur">
-        <ul className="mx-auto grid max-w-md grid-cols-4 px-2">
-          {([["#noegle", "Nøgle", KeyRound], ["#service", "Håndklæder", Sparkles], ["#rengoering", "Rengøring", Sparkles], ["#roomservice", "Mad", Utensils]] as const).map(([h, l, I]) => (
-            <li key={h}><a href={h} className="flex flex-col items-center gap-1 py-2.5 text-xs font-medium text-muted-foreground hover:text-primary"><I className="h-5 w-5" />{l}</a></li>
-          ))}
-        </ul>
-      </nav>
-      {sheet === "meals" && <HotelModal title="Vælg måltider" onClose={() => setSheet(null)}>
-        <MealsForm choices={{ breakfast_choice: st.meals.breakfast, lunch_choice: st.meals.lunch, dinner_choice: st.meals.dinner }} onChoose={(m, c) => st.setMeals(l => ({ ...l, [m]: l[m] === c ? null : c }))} />
-      </HotelModal>}
-      {sheet === "share" && <HotelModal title="Del adgang" onClose={() => setSheet(null)}>
-        <p className="text-sm">Scan koden eller del linket. Der er plads til {guests + 2} enheder ({guests} personer + 2 ekstra).</p>
-        <div className="flex justify-center rounded-lg bg-secondary p-5"><QRCodeSVG value="https://hotelpilot.example/gaest?t=demo" size={180} bgColor="transparent" fgColor="currentColor" /></div>
-        <Button variant="outline" onClick={async () => { const r = await shareLink({ title: "HotelPilot", text: "Her er adgang til værelse 101 på HotelPilot:", url: "https://hotelpilot.example/gaest?t=demo" }); if (r === "copied") toast.success("Link kopieret"); else if (r === "failed") toast.error("Linket kunne ikke deles"); }}><Share2 />Del link</Button>
-      </HotelModal>}
-      {sheet === "rooms" && <HotelModal title="Mine værelser" onClose={() => setSheet(null)}>
-        <RoomSwitcher rooms={[{ t: "a", d: "a", room: "101", name: "Anna Nielsen" }, { t: "b", d: "b", room: "102", name: "Anna Nielsen" }]} active="a" onOpen={() => toast("Demo: her skifter appen til værelse 102 med dets eget kontrolsystem")} onAdd={() => toast("Demo: her logger du ind med endnu et bookingnummer")} />
-      </HotelModal>}
-      {sheet === "clean" && <HotelModal title="Bestil rengøring" onClose={() => setSheet(null)}>
-        <CleaningForm room="101" guests={guests} onSubmit={(towels, from, until) => {
-          const repeat = mine?.status === "not_reached";
-          st.setCleaning(l => [...l, { id: `c${Date.now()}`, room_number: "101", guest_name: "Anna (dig)", wants_towels: towels > 0, towel_count: towels, away_from: from ? from.toISOString() : null, away_until: until ? until.toISOString() : null, status: "requested", is_repeat: repeat, created_at: new Date().toISOString() }]);
-          setSheet(null); toast("Demo: personalet kan se den under Personale (ikke gemt)");
-        }} />
-      </HotelModal>}
+          <p className="text-center text-sm text-muted-foreground">Op til {guests} ad gangen. Håndklæder kan bestilles 1 gang hver 12. time.</p>
+          {towelWait && <p role="status" className="rounded-md bg-secondary p-3 text-sm">Du kan bestille håndklæder igen kl. {hm(new Date(towelWait).toISOString())}.</p>}
+          <Button className="w-full" disabled={!!towelWait} onClick={() => { setQty(1); setTowelAt(Date.now()); toast("Demo: bestilling ikke gemt"); }}>Bestil {q} {q === 1 ? "håndklæde" : "håndklæder"}</Button>
+        </PageCard>}
+        {sheet === "food" && <PageCard><RoomService room="101" onSubmit={(d) => { toast(`Demo: ${d} — ikke sendt til køkkenet`); }} /></PageCard>}
+        {sheet === "clean" && <>
+          <PageCard><CleaningStatusNote req={mine} />{!mine && <p className="text-sm text-muted-foreground">Vælg om du vil have rengøring, og hvornår det passer.</p>}</PageCard>
+          {!mineOpen && <PageCard>
+            <CleaningForm room="101" guests={guests} onSubmit={(towels, from, until) => {
+              const repeat = mine?.status === "not_reached";
+              st.setCleaning(l => [...l, { id: `c${Date.now()}`, room_number: "101", guest_name: "Anna (dig)", wants_towels: towels > 0, towel_count: towels, away_from: from ? from.toISOString() : null, away_until: until ? until.toISOString() : null, status: "requested", is_repeat: repeat, created_at: new Date().toISOString() }]);
+              toast("Demo: personalet kan se den under Personale (ikke gemt)");
+            }} />
+          </PageCard>}
+        </>}
+        {sheet === "meals" && <PageCard><MealsForm choices={mealChoices} onChoose={(m, c) => st.setMeals(l => ({ ...l, [m]: l[m] === c ? null : c }))} /></PageCard>}
+        {sheet === "wifi" && <div className="rounded-2xl bg-gradient-forest p-5 text-forest-foreground"><p className="text-sm opacity-80">Netværk og kode vises her, når du er logget ind som rigtig gæst.</p></div>}
+        {sheet === "share" && <PageCard>
+          <p className="text-sm">Scan koden eller del linket. Der er plads til {guests + 2} enheder ({guests} personer + 2 ekstra).</p>
+          <div className="flex justify-center rounded-lg bg-secondary p-5"><QRCodeSVG value="https://hotelpilot.example/gaest?t=demo" size={180} bgColor="transparent" fgColor="currentColor" /></div>
+          <Button variant="outline" className="w-full" onClick={async () => { const r = await shareLink({ title: "HotelPilot", text: "Her er adgang til værelse 101 på HotelPilot:", url: "https://hotelpilot.example/gaest?t=demo" }); if (r === "copied") toast.success("Link kopieret"); else if (r === "failed") toast.error("Linket kunne ikke deles"); }}><Share2 />Del link</Button>
+        </PageCard>}
+        {sheet === "rooms" && <PageCard><RoomSwitcher rooms={[{ t: "a", d: "a", room: "101", name: "Anna Nielsen" }, { t: "b", d: "b", room: "102", name: "Anna Nielsen" }]} active="a" onOpen={() => toast("Demo: her skifter appen til værelse 102 med dets eget kontrolsystem")} onAdd={() => toast("Demo: her logger du ind med endnu et bookingnummer")} /></PageCard>}
+      </SubPage>}
     </div>
   );
 }
