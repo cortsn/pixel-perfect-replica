@@ -17,3 +17,7 @@
 - Guest orders are scoped by booking through token/device RPCs; realtime notifications trigger authorized refetches rather than supplying guest order contents.
 - PMS simulation and invitation previews are staff-PIN-authorized RPCs; booking inserts generate simulated invitation records via a database trigger.
 - Hotel interaction views live in shared hotel components; the map is an explicitly illustrative floor plan, not a verified building plan.
+- Roomservice-menuen (`menu_categories`, `menu_items`, `roomservice_settings`) er læsbar for alle, men kun personale-RPC'er skriver. Gæsteappen henter den via `guest_menu`; `guest_order_menu` regner ALTID prisen ud på serveren.
+- Regning: `bill_items` (ingen klient-grants). Leveret roomservice lægges automatisk på regningen i `staff_set_order_status`. Annullerede poster beholdes (`voided_at`). Regningen låses ved checkout.
+- HotelPilot tager ikke imod betaling. `staff_checkout` registrerer kun, hvordan regningen blev betalt i hotellets eget system, afslutter opholdet, gemmer regningen i `checkouts`, sætter værelset til rengøring og opretter en rengøringsopgave (`cleaning_requests.kind = 'checkout'`).
+- Personale logger ind med hovedkoden (`hotel_secrets.staff_pin`) eller en medarbejderkode (`staff_members`, saltet hash). `staff_check` accepterer begge; `internal_*`-funktioner er ikke kaldbare fra klienten.

@@ -28,7 +28,7 @@ export type GuestSession = {
 };
 
 export type HousekeepingStatus = "occupied" | "needs_cleaning" | "cleaning" | "clean";
-export type OrderStatus = "pending" | "in_progress" | "ready" | "done" | "cancelled";
+export type OrderStatus = "pending" | "accepted" | "in_progress" | "ready" | "done" | "rejected" | "cancelled";
 
 export const HOUSEKEEPING_LABELS: Record<HousekeepingStatus, string> = {
   occupied: "Gæst på værelset",
@@ -39,14 +39,16 @@ export const HOUSEKEEPING_LABELS: Record<HousekeepingStatus, string> = {
 
 export const ORDER_LABELS: Record<OrderStatus, string> = {
   pending: "Ny",
+  accepted: "Accepteret",
   in_progress: "I gang",
   ready: "Klar",
   done: "Leveret",
+  rejected: "Afvist",
   cancelled: "Annulleret",
 };
 
 export const nextOrderStatus = (s: OrderStatus): OrderStatus =>
-  s === "pending" ? "in_progress" : s === "in_progress" ? "ready" : s === "ready" ? "done" : s;
+  s === "pending" ? "accepted" : s === "accepted" ? "in_progress" : s === "in_progress" ? "ready" : s === "ready" ? "done" : s;
 
 const KEY = "hotelpilot-guests";
 const OLD_KEY = "hotelpilot-guest";
@@ -109,6 +111,30 @@ export function errorText(e: { message?: string } | null) {
   if (m.includes("NOT_CHECKED_IN")) return "Tjek ind først, så virker nøglen.";
   if (m.includes("BOOKING_NOT_FOUND")) return "Opholdet findes ikke længere.";
   if (m.includes("INVALID_STAY")) return "Sluttidspunktet skal være efter starttidspunktet.";
+  if (m.includes("ROOMSERVICE_CLOSED")) return "Roomservice er lukket lige nu.";
+  if (m.includes("ITEM_UNAVAILABLE")) return "En af varerne er ikke tilgængelig lige nu. Opdater kurven og prøv igen.";
+  if (m.includes("EMPTY_ORDER")) return "Kurven er tom.";
+  if (m.includes("INVALID_ORDER")) return "Bestillingen kunne ikke gennemføres. Tjek varer og antal.";
+  if (m.includes("OPEN_ORDERS")) return "Der er uafsluttede roomserviceordrer. Lever eller afvis dem, før gæsten tjekker ud.";
+  if (m.includes("PAYMENT_REQUIRED")) return "Vælg, hvordan regningen er betalt, før gæsten tjekker ud.";
+  if (m.includes("ALREADY_CHECKED_OUT")) return "Gæsten er allerede tjekket ud.";
+  if (m.includes("BILL_CLOSED")) return "Regningen er afsluttet og kan ikke ændres.";
+  if (m.includes("ITEM_VOIDED")) return "Posten er annulleret.";
+  if (m.includes("NO_ACTIVE_STAY")) return "Der bor ingen gæst på værelset lige nu.";
+  if (m.includes("NO_ROOM_RATE")) return "Sæt værelsets pris under Værelser først.";
+  if (m.includes("ALREADY_ADDED")) return "Overnatning er allerede på regningen.";
+  if (m.includes("STAY_NOT_STARTED")) return "Opholdet er ikke startet endnu.";
+  if (m.includes("ORDER_CLOSED")) return "Ordren er allerede afsluttet.";
+  if (m.includes("MANAGER_ONLY")) return "Kun en leder kan gøre det.";
+  if (m.includes("PIN_TAKEN")) return "Koden bruges allerede. Vælg en anden.";
+  if (m.includes("INVALID_PIN")) return "Koden skal være 4–8 cifre.";
+  if (m.includes("INVALID_PRICE")) return "Prisen er ugyldig.";
+  if (m.includes("INVALID_QTY")) return "Antal skal være mellem 1 og 999.";
+  if (m.includes("INVALID_NAME")) return "Skriv et navn eller en beskrivelse.";
+  if (m.includes("INVALID_OPTIONS")) return "Varianter og tilvalg skal have et navn og en gyldig pris.";
+  if (m.includes("INVALID_HOURS")) return "Udfyld både fra- og til-tidspunkt, eller ingen af dem.";
+  if (m.includes("INVALID_WIFI")) return "Wi-Fi skal have et navn og en kode på mindst 8 tegn.";
+  if (m.includes("FORBIDDEN")) return "Ingen adgang. Log ind igen.";
   if (m.includes("TOWEL_COOLDOWN")) return "Du kan bestille håndklæder 1 gang hver 12. time.";
   if (m.includes("TOWEL_LIMIT")) return "Du kan højst bytte lige så mange håndklæder, som der er personer på værelset.";
   if (m.includes("STAY_NOT_ENDED")) return "Du kan give en rating, når dit ophold er slut.";

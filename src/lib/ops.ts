@@ -7,7 +7,7 @@ export function dinnerStats(bookings: { guests: number; dinner_choice: string | 
   return { total, eating, unanswered, pct: total ? Math.round((eating / total) * 100) : 0, kg: Math.round(eating * KG_PER_DINNER * 10) / 10 };
 }
 /** Minutes after which an order counts as delayed, per status. */
-export const DELAY_MIN: Record<string, number> = { pending: 10, in_progress: 20, ready: 10 };
+export const DELAY_MIN: Record<string, number> = { pending: 10, accepted: 15, in_progress: 20, ready: 10 };
 export function isDelayed(status: string, since: string, now: number) {
   const limit = DELAY_MIN[status];
   return limit !== undefined && now - Date.parse(since) > limit * 60000;

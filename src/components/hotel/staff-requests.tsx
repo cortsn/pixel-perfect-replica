@@ -64,6 +64,7 @@ export function StaffRequestsView({ requests, now, busy, onCleaning: setCleaning
                   <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold">{CLEANING_LABELS[r.status]}</span>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                  {r.kind === 'checkout' && <span className="flex items-center gap-1 rounded-full bg-brass/20 px-2 py-1 font-semibold">Afrejse · fuld rengøring</span>}
                   {r.is_repeat && <span className="flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-1 font-semibold text-destructive"><Repeat className="h-3 w-3" />Bestilt igen – ikke nået første gang</span>}
                   <span className={`flex items-center gap-1 rounded-full border px-2 py-1 ${(r.towel_count ?? (r.wants_towels ? 1 : 0)) > 0 ? "border-primary/40 bg-primary/10 font-semibold text-primary" : ""}`}><Sparkles className="h-3 w-3" />{towelText(r)}</span>
                   {r.away_from && r.away_until
@@ -73,7 +74,7 @@ export function StaffRequestsView({ requests, now, busy, onCleaning: setCleaning
                 <div className="mt-3 flex flex-wrap gap-2">
                   {r.status === 'requested' && <Button size="sm" disabled={busy === r.id} onClick={() => setCleaning(r, 'in_progress')}>Start</Button>}
                   <Button size="sm" variant={r.status === 'in_progress' ? 'default' : 'outline'} disabled={busy === r.id} onClick={() => setCleaning(r, 'done')}>Færdig</Button>
-                  <Button size="sm" variant="outline" disabled={busy === r.id} className="text-destructive" onClick={() => setCleaning(r, 'not_reached')}><AlertTriangle />Ikke nået</Button>
+                  {r.kind !== 'checkout' && <Button size="sm" variant="outline" disabled={busy === r.id} className="text-destructive" onClick={() => setCleaning(r, 'not_reached')}><AlertTriangle />Ikke nået</Button>}
                 </div>
               </li>
             );

@@ -16,3 +16,6 @@ describe('Towel orders: once every 12 hours',()=>{
  it('allows again exactly after 12 hours',()=>expect(towelNextAt([o('done',t0)],t0+TOWEL_COOLDOWN_MS)).toBeNull());
  it('ignores cancelled orders and other order types',()=>expect(towelNextAt([o('cancelled',t0),o('pending',t0,'room_service')],t0+1000)).toBeNull());
 });
+describe('Order cancellation window',()=>{
+ it('allows cancelling until the kitchen has finished',()=>{expect(cancellable('accepted')).toBe(true);expect(cancellable('ready')).toBe(false);expect(cancellable('rejected')).toBe(false);});
+});

@@ -12,6 +12,8 @@ export type CleaningRequest = {
   away_until: string | null;
   status: CleaningStatus;
   is_repeat: boolean;
+  /** 'checkout' = oprettet automatisk ved checkout. */
+  kind?: 'guest' | 'checkout';
   created_at: string;
   updated_at?: string;
 };

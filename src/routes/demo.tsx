@@ -3,11 +3,12 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { QRCodeSVG } from "qrcode.react";
-import { Check, ChevronDown, DoorOpen, KeyRound, Leaf, Minus, Plus, QrCode, ShoppingBasket, Share2, ShowerHead, Sparkles, Star, Utensils, Wifi } from "lucide-react";
+import { Check, ChevronDown, DoorOpen, KeyRound, Leaf, Minus, Plus, ShoppingBasket, Share2, ShowerHead, Sparkles, Star, Utensils, Wifi } from "lucide-react";
 import { PageCard, SettingsGroup, SettingsRow, SubPage } from "@/components/hotel/settings-ui";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { shareLink } from "@/lib/share";
+import type { GuestMenu, MenuItem } from "@/lib/menu";
 import { TOWEL_COOLDOWN_MS, hm } from "@/lib/stay";
 import { OrdersBoard, type BoardOrder } from "@/components/hotel/orders-board";
 import { nextOrderStatus, ORDER_LABELS, type Meal } from "@/lib/hotel";
@@ -66,6 +67,14 @@ type DemoState = {
   now: number;
   meals: Record<Meal, "hotel" | "out" | null>; setMeals: React.Dispatch<React.SetStateAction<Record<Meal, "hotel" | "out" | null>>>;
   ratings: { room: string; rating: number; comment: string }[]; setRatings: React.Dispatch<React.SetStateAction<{ room: string; rating: number; comment: string }[]>>;
+};
+const demoItem = (id: string, name: string, description: string, price_cents: number, extra: Partial<MenuItem> = {}): MenuItem => ({ id, name, description, price_cents, image_url: null, variants: [], addons: [], available_now: true, available_from: null, available_to: null, ...extra });
+const DEMO_MENU: GuestMenu = {
+  settings: { enabled: true, opens_at: "07:00", closes_at: "22:00", open_now: true },
+  categories: [
+    { id: "c1", name: "Mad", items: [demoItem("i1", "Club sandwich", "Kylling, bacon, salat og tomat", 14500, { addons: [{ name: "Ekstra bacon", price_cents: 1500 }] }), demoItem("i2", "Caesar salat", "Romaine, parmesan og croutoner", 13500), demoItem("i3", "Dagens suppe", "Serveres med brød", 9500)] },
+    { id: "c2", name: "Drikke", items: [demoItem("i4", "Fadøl", "Lokalt bryg", 5500, { variants: [{ name: "33 cl", price_delta_cents: 0 }, { name: "50 cl", price_delta_cents: 1500 }] }), demoItem("i5", "Kaffe & croissant", "Friskbrygget kaffe", 6500)] },
+  ],
 };
 const sampleStays = (): DemoStay[] => {
   const at = (min: number) => new Date(Date.now() + min * 60000).toISOString();
@@ -169,7 +178,7 @@ function GuestDemo({ st }: { st: DemoState }) {
   const [qty, setQty] = useState(1);
   const [towelAt, setTowelAt] = useState<number | null>(null);
   const towelWait = towelAt && towelAt + TOWEL_COOLDOWN_MS > st.now ? towelAt + TOWEL_COOLDOWN_MS : null;
-  const [sheet, setSheet] = useState<"towels" | "clean" | "food" | "meals" | "share" | "rooms" | "wifi" | "key" | null>(null);
+  const [sheet, setSheet] = useState<"towels" | "clean" | "food" | "meals" | "share" | "rooms" | "wifi" | null>(null);
   const [rated, setRated] = useState(false);
   const [seen, setSeen] = useState(0);
   const q = Math.min(qty, guests);
@@ -189,7 +198,7 @@ function GuestDemo({ st }: { st: DemoState }) {
   if (!me.checked_in_at) return <CheckInScreen name="Anna" room="101" notice={notice} onLogout={resetTimes} onCheckIn={() => { st.setStays(l => l.map(x => x.id === "mine" ? { ...x, checked_in_at: new Date().toISOString() } : x)); toast("Du er tjekket ind. Velkommen!"); }} />;
   const mealsChosen = [st.meals.breakfast, st.meals.lunch, st.meals.dinner].filter(Boolean).length;
   const mealChoices = { breakfast_choice: st.meals.breakfast, lunch_choice: st.meals.lunch, dinner_choice: st.meals.dinner };
-  const TITLES = { towels: "Håndklæder", clean: "Rengøring", food: "Room service", share: "Del adgang", wifi: "Wi-Fi", meals: "Vælg måltider", rooms: "Mine værelser", key: "Digital nøgle" } as const;
+  const TITLES = { towels: "Håndklæder", clean: "Rengøring", food: "Room service", share: "Del adgang", wifi: "Wi-Fi", meals: "Vælg måltider", rooms: "Mine værelser" } as const;
   return (
     <div className="mx-auto max-w-md pb-[calc(env(safe-area-inset-bottom)+2rem)]">
       <header className="rounded-b-3xl bg-gradient-forest px-6 pb-7 pt-[calc(env(safe-area-inset-top)+1.75rem)] text-forest-foreground">
@@ -202,7 +211,7 @@ function GuestDemo({ st }: { st: DemoState }) {
         <section id="noegle" className="rounded-2xl border bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between"><p className="eyebrow text-muted-foreground">Digital nøgle · Værelse 101</p><span className="flex items-center gap-1 text-xs text-status-clean"><Check className="h-4 w-4" />Aktiv</span></div>
           <Button className="mt-3 h-16 w-full rounded-full bg-gradient-brass text-lg font-semibold text-accent-foreground shadow-soft" onClick={() => toast("Demo: dør ikke tilsluttet")}><KeyRound className="!h-6 !w-6" />Lås dør op</Button>
-          <button type="button" onClick={() => setSheet("key")} className="mt-3 flex w-full items-center justify-center gap-1.5 text-sm text-muted-foreground"><QrCode className="h-4 w-4" />Vis QR-nøgle</button>
+
         </section>
         <SettingsGroup title="Bestil">
           <SettingsRow Icon={ShowerHead} tone="primary" title="Håndklæder" value={towelWait ? `Igen kl. ${hm(new Date(towelWait).toISOString())}` : `op til ${guests}`} onClick={() => setSheet("towels")} />
@@ -220,9 +229,6 @@ function GuestDemo({ st }: { st: DemoState }) {
         <StayEndTimer endsAt={me.ends_at} clock={st.now} />
       </main>
       {sheet && <SubPage title={TITLES[sheet]} onBack={() => setSheet(null)}>
-        {sheet === "key" && <PageCard>
-          <div className="flex flex-col items-center gap-3"><div className="rounded-lg bg-forest p-4 text-forest-foreground"><QRCodeSVG value="HOTELPILOT-DEMO:101" size={200} bgColor="transparent" fgColor="currentColor" /></div><p className="text-center text-sm text-muted-foreground">Din digitale værelsesnøgle · simuleret dørlås</p></div>
-        </PageCard>}
         {sheet === "towels" && <PageCard>
           <p className="text-center text-sm text-muted-foreground">Hvor mange håndklæder skal byttes?</p>
           <div className="flex items-center justify-center gap-4">
@@ -234,7 +240,7 @@ function GuestDemo({ st }: { st: DemoState }) {
           {towelWait && <p role="status" className="rounded-md bg-secondary p-3 text-sm">Du kan bestille håndklæder igen kl. {hm(new Date(towelWait).toISOString())}.</p>}
           <Button className="w-full" disabled={!!towelWait} onClick={() => { setQty(1); setTowelAt(Date.now()); toast("Demo: bestilling ikke gemt"); }}>Bestil {q} {q === 1 ? "håndklæde" : "håndklæder"}</Button>
         </PageCard>}
-        {sheet === "food" && <PageCard><RoomService room="101" onSubmit={(d) => { toast(`Demo: ${d} — ikke sendt til køkkenet`); }} /></PageCard>}
+        {sheet === "food" && <PageCard><RoomService room="101" menu={DEMO_MENU} onSubmit={(lines) => { toast(`Demo: ${lines.reduce((n, l) => n + l.qty, 0)} varer — ikke sendt til køkkenet`); }} /></PageCard>}
         {sheet === "clean" && <>
           <PageCard><CleaningStatusNote req={mine} />{!mine && <p className="text-sm text-muted-foreground">Vælg om du vil have rengøring, og hvornår det passer.</p>}</PageCard>
           {!mineOpen && <PageCard>

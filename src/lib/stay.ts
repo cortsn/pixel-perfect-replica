@@ -3,7 +3,7 @@ export function stayState(start: string, end: string, now: number): StayState {
   if (now >= Date.parse(end)) return 'expired';
   return now < Date.parse(start) ? 'waiting' : 'active';
 }
-export function cancellable(status: string) { return status === 'pending' || status === 'in_progress'; }
+export function cancellable(status: string) { return status === 'pending' || status === 'accepted' || status === 'in_progress'; }
 export function cleaningProgress(status: string) { return status === 'clean' ? 100 : status === 'cleaning' ? 60 : status === 'needs_cleaning' ? 15 : 0; }
 export function countdown(start: string, now: number) {
   const seconds = Math.max(0, Math.ceil((Date.parse(start) - now) / 1000));
