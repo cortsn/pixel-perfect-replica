@@ -281,6 +281,18 @@ describe('demo-database: samme regler som SQL', () => {
     expect((await call('staff_room_detail', { _room: '201' })).bill).toMatchObject({ total_cents: 3500, due_cents: 3500, items: 1 });
   });
 
+  it('rum-klar og seneste rengøring/håndklæder følger med gæstelisten og rumpleje', async () => {
+    const g = (await call('staff_guests'))[0];
+    const room = g.room_number as string;
+    demoStore._state().rooms.find(r => r.number === room)!.housekeeping_status = 'needs_cleaning';
+    const row = (await call('staff_guests')).find((x: { room_number: string }) => x.room_number === room);
+    expect(row.room_status).toBe('needs_cleaning');
+    expect(row.last_cleaned_at).toBeNull();
+    const care = await call('staff_room_care', { _room: room });
+    expect(care.room_status).toBe('needs_cleaning');
+    expect(care.last_towels_swapped_at).toBeNull();
+  });
+
   it('gæsteinfo viser ingen anmeldelse (de skrives først efter opholdet)', async () => {
     const info = await call('staff_guest_info', { _booking: demoStore._state().bookings.find(b => b.room_number === '201')!.id });
     expect(Object.keys(info.activity)).not.toContain('review');

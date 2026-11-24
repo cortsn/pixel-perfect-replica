@@ -6,7 +6,7 @@ import { CLEANING_LABELS, type CleaningStatus } from '@/lib/cleaning';
 import { HOUSEKEEPING_LABELS, ORDER_LABELS, type HousekeepingStatus, type OrderStatus } from '@/lib/hotel';
 import { fmtDKK } from '@/lib/money';
 import { PageTitle, card, dayTime, field, hm, useAct, useStaff, useStaffData } from '@/components/staff/core';
-import { relativeTime } from '@/components/staff/guests';
+import { RoomCareLine, relativeTime, type RoomCare } from '@/components/staff/guests';
 
 export type Room = {
   number: string; floor: number; capacity: number; housekeeping_status: HousekeepingStatus; rate_cents: number;
@@ -44,6 +44,7 @@ function RoomPanel({ number, problems, onClose, onChanged }: { number: string; p
   const act = useAct();
   const { openBill, openGuest, openCheckout, go } = useStaff();
   const { data: d, error, reload } = useStaffData<Detail>('staff_room_detail', { _room: number }, 10000);
+  const care = useStaffData<RoomCare>('staff_room_care', { _room: number }, 10000);
   const now = Date.now();
   async function setStatus(status: HousekeepingStatus) {
     const res = await act('staff_set_room_status', { _room: number, _status: status }, `Værelse ${number}: ${HOUSEKEEPING_LABELS[status]}`);
@@ -94,6 +95,7 @@ function RoomPanel({ number, problems, onClose, onChanged }: { number: string; p
             <section className={card}>
               <h3 className="text-lg">Rengøring</h3>
               <p className="mt-1 text-xs text-muted-foreground">Skift status, når værelset er rengjort eller har brug for det.</p>
+              {care.data && <RoomCareLine care={care.data} now={now} className="mt-1" />}
               <div className="mt-2 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Rengøringsstatus">
                 {(Object.keys(HOUSEKEEPING_LABELS) as HousekeepingStatus[]).map(s => (
                   <Button key={s} type="button" role="radio" aria-checked={d.room.housekeeping_status === s} variant={d.room.housekeeping_status === s ? 'default' : 'outline'} className="h-auto justify-start gap-2 whitespace-normal py-2 text-left" onClick={() => d.room.housekeeping_status !== s && setStatus(s)}>

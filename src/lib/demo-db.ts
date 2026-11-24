@@ -166,7 +166,19 @@ function guestOrder(booking: string, type: 'towels' | 'room_service', details: s
   return o.id;
 }
 
+const roomCare = (room: string) => {
+  const latest = (xs: string[]) => xs.sort().at(-1) ?? null;
+  const done = S.cleaning.filter(c => c.room_number === room && c.status === 'done');
+  return {
+    room_status: S.rooms.find(r => r.number === room)?.housekeeping_status ?? null,
+    last_cleaned_at: latest(done.map(c => c.updated_at)),
+    last_towels_swapped_at: latest(done.filter(c => c.wants_towels).map(c => c.updated_at)),
+    last_pool_towels_at: latest(S.orders.filter(o => o.room_number === room && o.type === 'towels' && !o.cancelled && o.status === 'done').map(o => o.updated_at)),
+  };
+};
+
 const H: Record<string, (a: Dict) => unknown> = {
+  staff_room_care: a => roomCare(String(a['_room'])),
   staff_who: () => ({ name: WHO, role: 'manager' }),
 
   staff_dashboard: () => {
@@ -189,7 +201,7 @@ const H: Record<string, (a: Dict) => unknown> = {
   staff_guests: () => S.bookings.filter(b => b.active && !b.checked_out_at && ts(b.ends_at) > Date.now() - 7 * 86400000).sort((a, c) => ts(a.starts_at) - ts(c.starts_at))
     .map(b => { const due = sum(liveItems(b.id).filter(i => !i.paid)); return { id: b.id, reference: b.reference, room_number: b.room_number, guest_name: b.guest_name, guest_email: b.guest_email, guests: b.guests, starts_at: b.starts_at, ends_at: b.ends_at, checked_in_at: b.checked_in_at, balance_cents: due, due_cents: due, total_cents: sum(liveItems(b.id)),
       open_orders: S.orders.filter(o => o.booking_id === b.id && o.type === 'room_service' && !o.cancelled && openOrderStatuses.includes(o.status)).length,
-      in_house: ts(b.starts_at) <= Date.now() && ts(b.ends_at) > Date.now(), overdue: ts(b.starts_at) <= Date.now() && ts(b.ends_at) <= Date.now() }; }),
+      in_house: ts(b.starts_at) <= Date.now() && ts(b.ends_at) > Date.now(), overdue: ts(b.starts_at) <= Date.now() && ts(b.ends_at) <= Date.now(), ...roomCare(b.room_number) }; }),
   staff_rooms: () => S.rooms.map(r => {
     const b = S.bookings.find(x => x.room_number === r.number && isCurrent(x));
     const ov = S.bookings.find(x => x.room_number === r.number && x.active && !x.checked_out_at && ts(x.starts_at) <= Date.now() && ts(x.ends_at) <= Date.now() && ts(x.ends_at) > Date.now() - 7 * 86400000);

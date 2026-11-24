@@ -64,7 +64,7 @@ function Login() {
               {busy ? "Logger ind…" : "Log ind"}
             </button>
           </form>
-          {phone === false && <p className="mt-5 text-center text-sm"><Link to="/demo" className="text-brass underline">Prøv demo (ingen data gemmes)</Link></p>}
+          <p className="mt-5 text-center text-sm"><Link to="/demo" className="text-brass underline">Prøv demo (ingen data gemmes)</Link></p>
           {appMode === false && <InstallHint />}
         </div>
       </div>

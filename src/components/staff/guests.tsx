@@ -3,7 +3,7 @@ import { AlertTriangle, Check, Info, LogIn, LogOut, Receipt, Search } from 'luci
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { rpc } from '@/lib/cleaning';
-import { errorText } from '@/lib/hotel';
+import { HOUSEKEEPING_LABELS, errorText, type HousekeepingStatus } from '@/lib/hotel';
 import { fmtDKK } from '@/lib/money';
 import { PageTitle, card, dayTime, field, hm, useStaff, useStaffData } from '@/components/staff/core';
 import { ReservationsPage } from '@/components/staff/reservations';
@@ -11,7 +11,10 @@ import { ReservationsPage } from '@/components/staff/reservations';
 export type GuestRow = {
   id: string; reference: string; room_number: string; guest_name: string; guest_email: string | null; guests: number; starts_at: string; ends_at: string;
   checked_in_at: string | null; balance_cents: number; due_cents?: number; total_cents?: number; open_orders?: number; in_house: boolean; overdue?: boolean;
+  room_status?: HousekeepingStatus | null; last_cleaned_at?: string | null; last_towels_swapped_at?: string | null; last_pool_towels_at?: string | null;
 };
+/** Er værelset klar til en ny gæst? Kun når det er rengjort. */
+export const roomReady = (g: { room_status?: HousekeepingStatus | null }) => !g.room_status || g.room_status === 'clean';
 type Filter = 'all' | 'arriving' | 'in' | 'departing';
 
 const sameDay = (iso: string, now = new Date()) => new Date(iso).toDateString() === now.toDateString();
@@ -78,6 +81,17 @@ export function relativeTime(ms: number): string {
   if (min < 1) return 'nu';
   const t = min >= 60 ? `${Math.floor(min / 60)} t${min % 60 ? ` ${min % 60} min` : ''}` : `${min} min`;
   return ms > 0 ? `om ${t}` : `for ${t} siden`;
+}
+
+export type RoomCare = { last_cleaned_at?: string | null; last_towels_swapped_at?: string | null; last_pool_towels_at?: string | null };
+const when = (iso: string | null | undefined, now: number) => (iso ? relativeTime(Date.parse(iso) - now) : 'ingen registreret');
+/** Hvornår værelset sidst blev rengjort, og hvornår håndklæder sidst blev byttet eller leveret. */
+export function RoomCareLine({ care, now, className = '' }: { care: RoomCare; now: number; className?: string }) {
+  return (
+    <p className={`text-xs text-muted-foreground ${className}`}>
+      Rengjort: {when(care.last_cleaned_at, now)} · Håndklæder byttet: {when(care.last_towels_swapped_at, now)} · Poolhåndklæder: {when(care.last_pool_towels_at, now)}
+    </p>
+  );
 }
 
 /** Skal gæsten tjekkes ind inden for vinduet? Ikke tjekket ind endnu, og starten ligger inden for vinduet (eller er allerede passeret). */
@@ -158,7 +172,13 @@ export function ArrivalsPage() {
     clearTimeout(timer.current);
     timer.current = setTimeout(() => setConfirmId(null), 4000);
   };
-  const primary = (g: GuestRow) => (mode === 'arrivals' ? void checkIn(g) : checkOut(g));
+  const armConfirm = (id: string) => { setConfirmId(id); clearTimeout(timer.current); timer.current = setTimeout(() => setConfirmId(null), 5000); };
+  /** Er værelset ikke klar, kræver tjek ind et ekstra tryk, så man ikke tjekker nogen ind på et beskidt værelse ved en fejl. */
+  const arrive = (g: GuestRow) => {
+    if (roomReady(g) || confirmId === g.id) { setConfirmId(null); void checkIn(g); return; }
+    armConfirm(g.id);
+  };
+  const primary = (g: GuestRow) => (mode === 'arrivals' ? arrive(g) : checkOut(g));
 
   return (
     <>
@@ -215,12 +235,14 @@ export function ArrivalsPage() {
                 <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
                   <span>{g.reference} · {g.guests} {g.guests === 1 ? 'gæst' : 'gæster'}</span>
                   {mode === 'departures' && (due > 0 ? <span className="rounded-full bg-status-dirty/15 px-2 py-0.5 font-semibold text-status-dirty">Skylder {fmtDKK(due)}</span> : <span className="rounded-full bg-status-clean/15 px-2 py-0.5 font-semibold text-status-clean">Intet at betale</span>)}
+                  {mode === 'arrivals' && !roomReady(g) && <span className="flex items-center gap-1 rounded-full bg-destructive/15 px-2 py-0.5 font-semibold text-destructive"><AlertTriangle className="h-3 w-3" />Værelset er ikke klar · {g.room_status ? HOUSEKEEPING_LABELS[g.room_status] : ''}</span>}
                   {mode === 'departures' && (g.open_orders ?? 0) > 0 && <span className="flex items-center gap-1 rounded-full bg-status-cleaning/25 px-2 py-0.5 font-semibold text-foreground"><AlertTriangle className="h-3 w-3" />{g.open_orders} åben{(g.open_orders ?? 0) === 1 ? '' : 'e'} ordre{(g.open_orders ?? 0) === 1 ? '' : 'r'}</span>}
                 </p>
+                <RoomCareLine care={g} now={now} />
               </div>
               <div className="flex items-center gap-2">
                 <Button size="lg" className={`h-11 min-w-32 text-base ${confirming ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}`} onClick={() => primary(g)} aria-label={mode === 'arrivals' ? `Tjek ${g.guest_name} ind` : `Tjek ${g.guest_name} ud`}>
-                  {mode === 'arrivals' ? <><LogIn />Tjek ind</> : confirming ? <><Check />Bekræft tjek ud</> : <><LogOut />{due > 0 ? `Tjek ud · ${fmtDKK(due)}` : 'Tjek ud'}</>}
+                  {mode === 'arrivals' ? (confirming ? <><AlertTriangle />Tjek ind alligevel</> : <><LogIn />Tjek ind</>) : confirming ? <><Check />Bekræft tjek ud</> : <><LogOut />{due > 0 ? `Tjek ud · ${fmtDKK(due)}` : 'Tjek ud'}</>}
                 </Button>
                 <Button size="icon" variant="outline" className="h-11 w-11" aria-label={`Gæsteinfo for ${g.guest_name}`} onClick={() => openGuest(g.id)}><Info /></Button>
               </div>
