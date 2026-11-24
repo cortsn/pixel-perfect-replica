@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { CalendarClock, Check, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { todayAt, towelText, type CleaningRequest } from '@/lib/cleaning';
+import { todayAt, type CleaningRequest } from '@/lib/cleaning';
 
 const hm = (iso: string) => new Date(iso).toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' });
 
@@ -57,9 +57,8 @@ export function CleaningForm({ room, guests, busy, onSubmit }: { room: string; g
 export function CleaningStatusNote({ req }: { req: CleaningRequest | null }) {
   if (!req) return null;
   const window = req.away_from && req.away_until ? `Du er væk ${hm(req.away_from)}–${hm(req.away_until)}. ` : '';
-  const towels = (req.towel_count ?? (req.wants_towels ? 1 : 0)) > 0 ? `${towelText(req)}. ` : '';
   const text = {
-    requested: `Bestilt. ${window}${towels}${CLEANING_NOTE}`,
+    requested: `Bestilt. ${window}${CLEANING_NOTE}`,
     in_progress: 'Rengøringen er i gang.',
     done: 'Rengøringen er gennemført.',
     not_reached: 'Vi nåede desværre ikke rengøringen. Du kan bestille igen.',

@@ -293,6 +293,34 @@ describe('demo-database: samme regler som SQL', () => {
     expect(care.last_towels_swapped_at).toBeNull();
   });
 
+  it('funktioner kan slås fra og blokerer gæstens bestilling', async () => {
+    expect((await call('staff_features')).towels).toBe(true);
+    await call('staff_set_feature', { _key: 'towels', _enabled: false });
+    await call('staff_set_feature', { _key: 'roomservice', _enabled: false });
+    expect(demoGuest.features()).toMatchObject({ towels: false, roomservice: false, cleaning: true });
+    demoGuest.checkIn();
+    expect(() => demoGuest.orderTowels(1)).toThrow('FEATURE_OFF');
+    expect(await fails('staff_set_feature', { _key: 'nonsens', _enabled: true })).toBe('INVALID_FEATURE');
+  });
+
+  it('beskeder til gæster: vises for gæsten og kan fjernes', async () => {
+    expect(await fails('staff_post_announcement', { _message: '   ' })).toBe('INVALID_MESSAGE');
+    const id = await call<string>('staff_post_announcement', { _message: '50 % i baren' });
+    expect(demoGuest.announcements().map(a => a.message)).toEqual(['50 % i baren']);
+    await call('staff_remove_announcement', { _id: id });
+    expect(demoGuest.announcements()).toHaveLength(0);
+  });
+
+  it('poolhåndklæder fra opgaver lukker gæstens bestilling og starter 12-timers reglen', async () => {
+    demoGuest.checkIn();
+    demoGuest.orderTowels(1);
+    await call('staff_pool_towels', { _room: '101' });
+    const open = (await call('staff_orders', { _limit: 50 })).filter((o: { room_number: string; type: string; status: string }) => o.room_number === '101' && o.type === 'towels' && o.status !== 'done');
+    expect(open).toHaveLength(0);
+    expect(() => demoGuest.orderTowels(1)).toThrow('TOWEL_COOLDOWN');
+    expect(await fails('staff_pool_towels', { _room: '103' })).toBe('NO_GUEST_IN_ROOM');
+  });
+
   it('gæsteinfo viser ingen anmeldelse (de skrives først efter opholdet)', async () => {
     const info = await call('staff_guest_info', { _booking: demoStore._state().bookings.find(b => b.room_number === '201')!.id });
     expect(Object.keys(info.activity)).not.toContain('review');

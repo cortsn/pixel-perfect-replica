@@ -112,6 +112,9 @@ export function errorText(e: { message?: string } | null) {
   if (m.includes("BOOKING_NOT_FOUND")) return "Opholdet findes ikke længere.";
   if (m.includes("INVALID_STAY")) return "Sluttidspunktet skal være efter starttidspunktet.";
   if (m.includes("ROOMSERVICE_STAY_ENDING")) return "Roomservice lukker 2 timer før dit ophold slutter.";
+  if (m.includes("FEATURE_OFF")) return "Denne funktion er slået fra lige nu.";
+  if (m.includes("NO_GUEST_IN_ROOM")) return "Der bor ingen gæst på værelset.";
+  if (m.includes("INVALID_MESSAGE")) return "Skriv en besked på op til 500 tegn.";
   if (m.includes("ROOMSERVICE_CLOSED")) return "Roomservice er lukket lige nu.";
   if (m.includes("ITEM_UNAVAILABLE")) return "En af varerne er ikke tilgængelig lige nu. Opdater kurven og prøv igen.";
   if (m.includes("EMPTY_ORDER")) return "Kurven er tom.";

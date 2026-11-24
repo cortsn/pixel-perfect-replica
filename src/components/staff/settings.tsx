@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { PageTitle, ROLE_LABELS, card, field, useAct, useStaff, useStaffData } from '@/components/staff/core';
 import { MembersPage } from '@/components/staff/members';
 import { centsToInput, fmtDKK, parseDKK } from '@/lib/money';
@@ -99,9 +100,51 @@ function RoomPrices() {
   );
 }
 
-/** Indstillinger: generelt, medarbejdere og værelsespriser. */
+
+type Features = Record<'roomservice' | 'towels' | 'cleaning' | 'meals' | 'events' | 'map', boolean>;
+const FEATURES: { key: keyof Features; title: string; hint: string }[] = [
+  { key: 'roomservice', title: 'Roomservice', hint: 'Gæsterne kan bestille mad og drikke. Slå fra, hvis hotellet ikke har roomservice.' },
+  { key: 'towels', title: 'Poolhåndklæder', hint: 'Gæsterne kan bestille håndklæder (1 gang hver 12. time).' },
+  { key: 'cleaning', title: 'Rengøring', hint: 'Gæsterne kan bestille rengøring.' },
+  { key: 'meals', title: 'Vælg måltider', hint: 'Gæsterne kan svare, om de spiser morgenmad, frokost og aftensmad på hotellet.' },
+  { key: 'events', title: 'I dag på hotellet', hint: 'Aktiviteter og begivenheder vises i appen.' },
+  { key: 'map', title: 'Hotelkort', hint: 'Gæsterne kan se kortet over hotellet.' },
+];
+
+/** Funktioner: slå de enkelte dele af gæsteappen til og fra. Det, der er slået fra, forsvinder fra gæsternes app. */
+function FeaturesPage() {
+  const act = useAct();
+  const { data, error, reload } = useStaffData<Features>('staff_features', {}, 15000);
+  const [local, setLocal] = useState<Partial<Features>>({});
+  const on = (k: keyof Features) => local[k] ?? data?.[k] ?? true;
+  async function toggle(k: keyof Features, v: boolean) {
+    setLocal(l => ({ ...l, [k]: v }));
+    const r = await act('staff_set_feature', { _key: k, _enabled: v });
+    if (!r.ok) setLocal(l => { const n = { ...l }; delete n[k]; return n; });
+    else { await reload(); setLocal(l => { const n = { ...l }; delete n[k]; return n; }); }
+  }
+  return (
+    <>
+      <PageTitle title="Funktioner" hint="Slå de dele af gæsteappen til eller fra, som hotellet ikke bruger." />
+      <div className={`${card} max-w-2xl p-0`}>
+        <ul className="divide-y">
+          {FEATURES.map(f => (
+            <li key={f.key} className="flex items-center justify-between gap-4 px-4 py-3">
+              <label htmlFor={`feat-${f.key}`} className="min-w-0 flex-1 cursor-pointer"><span className="block font-semibold">{f.title}</span><span className="block text-xs text-muted-foreground">{f.hint}</span></label>
+              <Switch id={`feat-${f.key}`} checked={on(f.key)} disabled={!data} onCheckedChange={v => void toggle(f.key, v)} aria-label={f.title} />
+            </li>
+          ))}
+        </ul>
+      </div>
+      {!data && <p className="mt-3 text-sm text-muted-foreground">{error ?? 'Henter…'}</p>}
+    </>
+  );
+}
+
+/** Indstillinger: generelt, funktioner, medarbejdere og værelsespriser. */
 export function SettingsSection({ page, onLogout }: { page: string; onLogout: () => void }) {
   if (page === 'staff') return <MembersPage />;
+  if (page === 'features') return <FeaturesPage />;
   if (page === 'prices') return <RoomPrices />;
   return <GeneralSettings onLogout={onLogout} />;
 }

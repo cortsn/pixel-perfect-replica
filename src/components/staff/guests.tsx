@@ -84,14 +84,11 @@ export function relativeTime(ms: number): string {
 }
 
 export type RoomCare = { last_cleaned_at?: string | null; last_towels_swapped_at?: string | null; last_pool_towels_at?: string | null };
-const when = (iso: string | null | undefined, now: number) => (iso ? relativeTime(Date.parse(iso) - now) : 'ingen registreret');
-/** Hvornår værelset sidst blev rengjort, og hvornår håndklæder sidst blev byttet eller leveret. */
+/** Hvornår værelset sidst blev rengjort, og hvornår håndklæder sidst blev byttet eller leveret. Viser kun det, der er registreret. */
 export function RoomCareLine({ care, now, className = '' }: { care: RoomCare; now: number; className?: string }) {
-  return (
-    <p className={`text-xs text-muted-foreground ${className}`}>
-      Rengjort: {when(care.last_cleaned_at, now)} · Håndklæder byttet: {when(care.last_towels_swapped_at, now)} · Poolhåndklæder: {when(care.last_pool_towels_at, now)}
-    </p>
-  );
+  const parts = ([['Rengjort', care.last_cleaned_at], ['Håndklæder byttet', care.last_towels_swapped_at], ['Poolhåndklæder', care.last_pool_towels_at]] as const)
+    .filter(([, at]) => !!at).map(([l, at]) => `${l} ${relativeTime(Date.parse(at!) - now)}`);
+  return parts.length === 0 ? null : <p className={`text-xs text-muted-foreground ${className}`}>{parts.join(' · ')}</p>;
 }
 
 /** Skal gæsten tjekkes ind inden for vinduet? Ikke tjekket ind endnu, og starten ligger inden for vinduet (eller er allerede passeret). */

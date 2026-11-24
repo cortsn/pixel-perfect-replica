@@ -1,10 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
-import { BarChart3, BedDouble, ClipboardCheck, ConciergeBell, LayoutDashboard, Receipt, Settings, Users, UtensilsCrossed, type LucideIcon } from 'lucide-react';
+import { BarChart3, BedDouble, ClipboardCheck, ConciergeBell, Megaphone, LayoutDashboard, Receipt, Settings, Users, UtensilsCrossed, type LucideIcon } from 'lucide-react';
 import { rpc, subscribeRpcChanges } from '@/lib/cleaning';
 import { errorText } from '@/lib/hotel';
 
-export type Section = 'dashboard' | 'guests' | 'rooms' | 'tasks' | 'orders' | 'sales' | 'stats' | 'services' | 'settings';
+export type Section = 'dashboard' | 'guests' | 'rooms' | 'tasks' | 'announcements' | 'orders' | 'sales' | 'stats' | 'services' | 'settings';
 export type NavPage = { id: string; label: string };
 export type NavItem = { id: Section; label: string; icon: LucideIcon; pages?: NavPage[] };
 /** Sidebaren: logiske grupper. Grupper med undersider åbnes som dropdown. */
@@ -12,12 +12,13 @@ export const NAV: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'guests', label: 'Gæster & ophold', icon: Users, pages: [{ id: 'overview', label: 'Gæster' }, { id: 'arrivals', label: 'Ankomster & afrejser' }, { id: 'reservations', label: 'Reservationer & tider' }] },
   { id: 'rooms', label: 'Værelser', icon: BedDouble },
-  { id: 'tasks', label: 'Opgaver & rengøring', icon: ClipboardCheck, pages: [{ id: 'cleaning', label: 'Rengøring' }, { id: 'towels', label: 'Håndklæder' }] },
+  { id: 'tasks', label: 'Opgaver', icon: ClipboardCheck },
+  { id: 'announcements', label: 'Beskeder til gæster', icon: Megaphone },
   { id: 'orders', label: 'Ordrer', icon: UtensilsCrossed },
   { id: 'sales', label: 'Salg & regninger', icon: Receipt, pages: [{ id: 'new', label: 'Nyt salg' }, { id: 'bills', label: 'Regninger' }, { id: 'history', label: 'Historik' }] },
   { id: 'stats', label: 'Statistik', icon: BarChart3, pages: [{ id: 'overview', label: 'Oversigt' }, { id: 'reviews', label: 'Anmeldelser' }] },
   { id: 'services', label: 'Hotellets services', icon: ConciergeBell, pages: [{ id: 'menu', label: 'Roomservice-menu' }, { id: 'hours', label: 'Åbningstider' }] },
-  { id: 'settings', label: 'Indstillinger', icon: Settings, pages: [{ id: 'general', label: 'Generelt' }, { id: 'staff', label: 'Medarbejdere' }, { id: 'prices', label: 'Værelsespriser' }] },
+  { id: 'settings', label: 'Indstillinger', icon: Settings, pages: [{ id: 'general', label: 'Generelt' }, { id: 'features', label: 'Funktioner' }, { id: 'staff', label: 'Medarbejdere' }, { id: 'prices', label: 'Værelsespriser' }] },
 ];
 const LEGACY: Record<string, [Section, string?]> = { roomservice: ['orders'], reservations: ['guests', 'reservations'], staff: ['settings', 'staff'] };
 /** Finder gruppe og underside ud fra adressen. Gamle adresser (fx ?s=roomservice) virker stadig. */

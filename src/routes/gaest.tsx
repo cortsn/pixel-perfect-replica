@@ -16,6 +16,7 @@ import { MealsForm } from '@/components/hotel/meals';
 import { RoomSwitcher } from '@/components/hotel/room-switcher';
 import { StayEndedScreen } from '@/components/hotel/stay-ended';
 import { RoomService } from '@/components/hotel/room-service';
+import { ALL_FEATURES, AnnouncementPopup, useAnnouncementPopup, type GuestAnnouncement, type GuestFeatures } from '@/components/hotel/announcements';
 import { CleaningForm, CleaningStatusNote } from '@/components/hotel/guest-requests';
 import { rpc, type CleaningRequest } from '@/lib/cleaning';
 import { fmtDKK } from '@/lib/money';
@@ -36,7 +37,7 @@ function GuestDashboard(){
  const [orders,setOrders]=useState<Order[]>([]);const [events,setEvents]=useState<Event[]>([]);
  const [sheet,setSheet]=useState<Sheet>(null);const [quantity,setQuantity]=useState(2);const [extras,setExtras]=useState<{cleaning:CleaningRequest|null}>({cleaning:null});const [seenNotice,setSeenNotice]=useState<string|null>(null);const lastNotice=useRef<string|null|undefined>(undefined);
  const [menu,setMenu]=useState<GuestMenu|null>(null);const [bill,setBill]=useState<GuestBill|null>(null);
- const [busy,setBusy]=useState(false);
+ const [busy,setBusy]=useState(false);const [features,setFeatures]=useState<GuestFeatures>(ALL_FEATURES);const [announcements,setAnnouncements]=useState<GuestAnnouncement[]>([]);const popup=useAnnouncementPopup(announcements);
  const [clock,setClock]=useState(0);const [offset,setOffset]=useState(0);const [origin,setOrigin]=useState('');const [wifiConnected,setWifiConnected]=useState(false);
  const state=s?stayState(s.starts_at,s.ends_at,clock):'waiting';
  function fail(e:{message?:string}){const msg=errorText(e);if(e.message?.includes('STAY_EXPIRED')){setExpired(true);setSheet(null);}toast.error(msg);}
@@ -53,7 +54,7 @@ function GuestDashboard(){
  async function loadBill(){if(!s)return;const {data}=await rpc<GuestBill>('guest_bill',{_token:s.access_token,_device:s.device_id});if(data)setBill(data);}
  useEffect(()=>{if(!s||state!=='active'||expired)return;void loadMenu();void loadBill();const timer=setInterval(()=>{void loadMenu();void loadBill();},15000);const ch=supabase.channel(`guest-menu-${Math.random().toString(36).slice(2)}`).on('postgres_changes',{event:'*',schema:'public',table:'menu_items'},()=>{void loadMenu();}).on('postgres_changes',{event:'*',schema:'public',table:'menu_categories'},()=>{void loadMenu();}).on('postgres_changes',{event:'*',schema:'public',table:'roomservice_settings'},()=>{void loadMenu();}).subscribe();return()=>{clearInterval(timer);void supabase.removeChannel(ch);};},[s?.access_token,s?.device_id,state,expired]);
  async function sendTowels(){if(!s||busy)return;if(towelNextAt(orders,clock)){toast.error('Du kan bestille håndklæder 1 gang hver 12. time.');return;}setBusy(true);const {error}=await supabase.rpc('guest_order_towels',{_token:s.access_token,_device:s.device_id,_qty:quantity});setBusy(false);if(error){fail(error);return;}setSheet(null);toast.success('Din bestilling er modtaget');await loadOrders();try{apply(await guestSession(s.access_token,s.device_id));}catch{/* næste opdatering henter status */}}
- async function loadExtras(){if(!s)return;const {data}=await rpc<typeof extras>('guest_extras',{_token:s.access_token,_device:s.device_id});if(data)setExtras(data);}
+ async function loadExtras(){if(!s)return;const {data}=await rpc<typeof extras>('guest_extras',{_token:s.access_token,_device:s.device_id});if(data)setExtras(data);const f=await rpc<GuestFeatures>('guest_features',{});if(f.data)setFeatures({...ALL_FEATURES,...f.data});const a=await rpc<GuestAnnouncement[]>('guest_announcements',{_token:s.access_token,_device:s.device_id});if(a.data)setAnnouncements(a.data);}
  async function requestCleaning(towels:number,from:Date|null,until:Date|null){if(!s||busy)return;setBusy(true);const {error}=await rpc('guest_request_cleaning_towels',{_token:s.access_token,_device:s.device_id,_towel_count:towels,_from:from?from.toISOString():null,_until:until?until.toISOString():null});setBusy(false);if(error){fail(error);return;}setS({...s,housekeeping_status:'needs_cleaning'});setSheet(null);toast.success('Personalet er underrettet. Rengøringen prøver at blive nået, men det er ikke sikkert.');await loadExtras();}
  async function checkIn(){if(!s||busy)return;setBusy(true);try{apply(await guestCheckIn(s.access_token,s.device_id));toast.success('Du er tjekket ind. Velkommen!');}catch(e){fail(e as {message?:string});}finally{setBusy(false);}}
  function dismissNotice(){if(!s?.notice_at)return;setSeenNotice(s.notice_at);try{localStorage.setItem('hp-notice-seen',s.notice_at);}catch{/* ingen lagring */}}
@@ -78,17 +79,17 @@ function GuestDashboard(){
  {notice}
  <section id="noegle" className="rounded-2xl border bg-card p-4 shadow-sm"><div className="flex items-center justify-between"><p className="eyebrow text-muted-foreground">Digital nøgle · Værelse {s.room_number}</p><span className="flex items-center gap-1 text-xs text-status-clean"><Check className="h-4 w-4"/>Aktiv</span></div><Button className="mt-3 h-16 w-full rounded-full bg-gradient-brass text-lg font-semibold text-accent-foreground shadow-soft" disabled={busy} onClick={unlock}><KeyRound className="!h-6 !w-6"/>Lås dør op</Button></section>
  <SettingsGroup title="Bestil">
- <SettingsRow Icon={ShowerHead} tone="primary" title="Håndklæder" value={towelNext?`Igen kl. ${hm(new Date(towelNext).toISOString())}`:`op til ${s.towel_limit}`} onClick={()=>{setQuantity(Math.max(1,Math.min(quantity,s.towel_limit)));setSheet('towels');}}/>
- <SettingsRow Icon={Utensils} tone="brass" title="Room service" value={roomserviceStayClosed(s.ends_at,clock)?"Lukket":menu?.settings&&!menu.settings.open_now?`Åbner ${menu.settings.opens_at}`:"Mad og drikke"} onClick={()=>setSheet('food')}/>
- <SettingsRow Icon={Sparkles} tone="clean" title="Rengøring" value={HOUSEKEEPING_LABELS[s.housekeeping_status]} onClick={()=>setSheet('clean')}/>
+ {features.towels&&<SettingsRow Icon={ShowerHead} tone="primary" title="Håndklæder" value={towelNext?`Igen kl. ${hm(new Date(towelNext).toISOString())}`:`op til ${s.towel_limit}`} onClick={()=>{setQuantity(Math.max(1,Math.min(quantity,s.towel_limit)));setSheet('towels');}}/>}
+ {features.roomservice&&<SettingsRow Icon={Utensils} tone="brass" title="Room service" value={roomserviceStayClosed(s.ends_at,clock)?"Lukket":menu?.settings&&!menu.settings.open_now?`Åbner ${menu.settings.opens_at}`:"Mad og drikke"} onClick={()=>setSheet('food')}/>}
+ {features.cleaning&&<SettingsRow Icon={Sparkles} tone="clean" title="Rengøring" value={HOUSEKEEPING_LABELS[s.housekeeping_status]} onClick={()=>setSheet('clean')}/>}
  <SettingsRow Icon={ReceiptText} tone="forest" title="Din regning" value={bill?fmtDKK(bill.total_cents):undefined} onClick={()=>setSheet('bill')}/>
  {orders.length>0&&<SettingsRow Icon={ClipboardList} tone="forest" title="Dine bestillinger" badge={activeOrders} value={activeOrders?undefined:String(orders.length)} onClick={()=>setSheet('orders')}/>}
  </SettingsGroup>
  <SettingsGroup title="Opholdet">
- <SettingsRow Icon={Leaf} tone="clean" title="Vælg måltider" value={mealsChosen?`${mealsChosen} valgt`:undefined} onClick={()=>setSheet('meals')}/>
+ {features.meals&&<SettingsRow Icon={Leaf} tone="clean" title="Vælg måltider" value={mealsChosen?`${mealsChosen} valgt`:undefined} onClick={()=>setSheet('meals')}/>}
  <SettingsRow Icon={Wifi} tone="primary" title="Wi-Fi" value={s.wifi_ssid} onClick={()=>setSheet('wifi')}/>
- <SettingsRow Icon={Map} tone="forest" title="Hotelkort" onClick={()=>setSheet('map')}/>
- <SettingsRow Icon={CalendarDays} tone="dirty" title="I dag på hotellet" value={events.length?String(events.length):undefined} onClick={()=>setSheet('events')}/>
+ {features.map&&<SettingsRow Icon={Map} tone="forest" title="Hotelkort" onClick={()=>setSheet('map')}/>}
+ {features.events&&<SettingsRow Icon={CalendarDays} tone="dirty" title="I dag på hotellet" value={events.length?String(events.length):undefined} onClick={()=>setSheet('events')}/>}
  </SettingsGroup>
  <SettingsGroup>
  <SettingsRow Icon={Share2} tone="brass" title="Del adgang" value={`${s.devices}/${s.max_devices}`} onClick={()=>setSheet('share')}/>
@@ -109,5 +110,6 @@ function GuestDashboard(){
  {sheet==='share'&&<PageCard><p className="text-sm">Scan koden eller del linket. Der er plads til {s.max_devices} enheder ({s.guests} {s.guests===1?'person':'personer'} + 2 ekstra) · {s.devices} tilknyttet.</p><div className="flex justify-center rounded-lg bg-secondary p-5"><QRCodeSVG value={shareUrl} size={180} bgColor="transparent" fgColor="currentColor"/></div><div className="grid grid-cols-2 gap-2"><Button onClick={async()=>{try{await navigator.clipboard.writeText(shareUrl);toast.success('Link kopieret');}catch{toast.error('Linket kunne ikke kopieres');}}}>Kopiér link</Button><Button variant="outline" onClick={async()=>{const r=await shareLink({title:'HotelPilot',text:`Her er adgang til værelse ${s.room_number} på HotelPilot:`,url:shareUrl});if(r==='copied')toast.success('Link kopieret');else if(r==='failed')toast.error('Linket kunne ikke deles');}}><Share2/>Del link</Button></div></PageCard>}
  {sheet==='rooms'&&(()=>{const st=listStored();return <PageCard><RoomSwitcher rooms={st.rooms} active={st.active} onOpen={openRoom} onAdd={()=>{void navigate({to:'/'});}}/></PageCard>;})()}
  </SubPage>}
+ <AnnouncementPopup announcement={popup.current} onClose={popup.dismiss}/>
  </div>;
 }

@@ -15,6 +15,7 @@ import { DashboardPage } from '@/components/staff/dashboard';
 import { GuestsSection } from '@/components/staff/guests';
 import { RoomsPage } from '@/components/staff/rooms';
 import { TasksSection } from '@/components/staff/tasks';
+import { AnnouncementsPage } from '@/components/staff/announcements';
 import { SalesSection } from '@/components/staff/sales';
 import { OrdersPage } from '@/components/staff/roomservice';
 import { StatsSection } from '@/components/staff/stats';
@@ -145,7 +146,8 @@ export function StaffShell({ pin, section, page, onNavigate, onLogout, demoBar }
               {section === 'dashboard' && <DashboardPage />}
               {section === 'guests' && <GuestsSection page={page} />}
               {section === 'rooms' && <RoomsPage />}
-              {section === 'tasks' && <TasksSection page={page} />}
+              {section === 'tasks' && <TasksSection />}
+              {section === 'announcements' && <AnnouncementsPage />}
               {section === 'orders' && <OrdersPage />}
               {section === 'sales' && <SalesSection page={page} />}
               {section === 'stats' && <StatsSection page={page} />}

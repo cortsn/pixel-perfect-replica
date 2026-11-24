@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Check, ChevronDown, ClipboardList, DoorOpen, KeyRound, Leaf, Minus, Plus, ReceiptText, RotateCcw, Share2, ShowerHead, Sparkles, Utensils, Wifi } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { Logo } from "@/components/hotel/logo";
+import { ALL_FEATURES, AnnouncementPopup, useAnnouncementPopup } from "@/components/hotel/announcements";
 import { PageCard, SettingsGroup, SettingsRow, SubPage } from "@/components/hotel/settings-ui";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -96,6 +97,7 @@ function GuestDemo() {
   const [qty, setQty] = useState(1);
   const [seen, setSeen] = useState<string | null>(null);
   const [rated, setRated] = useState(false);
+  const popup = useAnnouncementPopup(demoGuest.announcements(), false);
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
   useEffect(() => { demoGuest.touch(); const t = setInterval(() => demoGuest.touch(), 30000); return () => clearInterval(t); }, []);
 
@@ -131,6 +133,7 @@ function GuestDemo() {
   const mealsChosen = Object.values(meals).filter(Boolean).length;
   const wifi = demoStore._state().wifi;
   const close = () => setSheet(null);
+  const features = { ...ALL_FEATURES, ...demoGuest.features() };
 
   return (
     <div className="mx-auto max-w-md pb-[calc(env(safe-area-inset-bottom)+2rem)]">
@@ -147,14 +150,14 @@ function GuestDemo() {
           <Button className="mt-3 h-16 w-full rounded-full bg-gradient-brass text-lg font-semibold text-accent-foreground shadow-soft" onClick={() => { demoGuest.unlock(); toast("Døren er låst op"); }}><KeyRound className="!h-6 !w-6" />Lås dør op</Button>
         </section>
         <SettingsGroup title="Bestil">
-          <SettingsRow Icon={ShowerHead} tone="primary" title="Håndklæder" value={towelNext ? `Igen kl. ${hm(new Date(towelNext).toISOString())}` : `op til ${guests}`} onClick={() => { setQty(Math.max(1, Math.min(qty, guests))); setSheet("towels"); }} />
-          <SettingsRow Icon={Utensils} tone="brass" title="Room service" value={roomserviceStayClosed(b.ends_at, now) ? "Lukket" : menu.settings && !menu.settings.open_now ? `Åbner ${menu.settings.opens_at}` : "Mad og drikke"} onClick={() => setSheet("food")} />
-          <SettingsRow Icon={Sparkles} tone="clean" title="Rengøring" value={HOUSEKEEPING_LABELS[room.housekeeping_status]} onClick={() => setSheet("clean")} />
+          {features.towels && <SettingsRow Icon={ShowerHead} tone="primary" title="Håndklæder" value={towelNext ? `Igen kl. ${hm(new Date(towelNext).toISOString())}` : `op til ${guests}`} onClick={() => { setQty(Math.max(1, Math.min(qty, guests))); setSheet("towels"); }} />}
+          {features.roomservice && <SettingsRow Icon={Utensils} tone="brass" title="Room service" value={roomserviceStayClosed(b.ends_at, now) ? "Lukket" : menu.settings && !menu.settings.open_now ? `Åbner ${menu.settings.opens_at}` : "Mad og drikke"} onClick={() => setSheet("food")} />}
+          {features.cleaning && <SettingsRow Icon={Sparkles} tone="clean" title="Rengøring" value={HOUSEKEEPING_LABELS[room.housekeeping_status]} onClick={() => setSheet("clean")} />}
           <SettingsRow Icon={ReceiptText} tone="forest" title="Din regning" value={fmtDKK(bill.total_cents)} onClick={() => setSheet("bill")} />
           {orders.length > 0 && <SettingsRow Icon={ClipboardList} tone="forest" title="Dine bestillinger" badge={activeOrders} value={activeOrders ? undefined : String(orders.length)} onClick={() => setSheet("orders")} />}
         </SettingsGroup>
         <SettingsGroup title="Opholdet">
-          <SettingsRow Icon={Leaf} tone="clean" title="Vælg måltider" value={mealsChosen ? `${mealsChosen} valgt` : undefined} onClick={() => setSheet("meals")} />
+          {features.meals && <SettingsRow Icon={Leaf} tone="clean" title="Vælg måltider" value={mealsChosen ? `${mealsChosen} valgt` : undefined} onClick={() => setSheet("meals")} />}
           <SettingsRow Icon={Wifi} tone="primary" title="Wi-Fi" value={wifi.ssid} onClick={() => setSheet("wifi")} />
         </SettingsGroup>
         <SettingsGroup>
@@ -163,6 +166,7 @@ function GuestDemo() {
         </SettingsGroup>
         <StayEndTimer endsAt={b.ends_at} clock={now} />
       </main>
+      <AnnouncementPopup announcement={popup.current} onClose={popup.dismiss} />
 
       {sheet && <SubPage title={TITLES[sheet]} onBack={close}>
         {sheet === "towels" && <PageCard>

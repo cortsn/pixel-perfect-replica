@@ -56,6 +56,8 @@ type State = {
   emails: { id: string; booking_id: string; recipient: string; subject: string; status: string; created_at: string }[];
   members: Member[]; wifi: { ssid: string; password: string };
   payments: Payment[]; devices: Device[]; images: Record<string, { data: string; ver: number }>;
+  features: Record<'towels' | 'cleaning' | 'meals' | 'events' | 'map', boolean>;
+  announcements: { id: string; message: string; created_by: string; created_at: string; removed_at: string | null }[];
 };
 
 function seed(): State {
@@ -122,7 +124,7 @@ function seed(): State {
     dev('b-HP-3002', now - 29 * H, now - 2 * H, 4),
     dev('b-HP-3004', now - 8 * H, now - 5 * M, 5), dev('b-HP-3004', now - 7 * H, now - 40 * M, 1), dev('b-HP-3004', now - 6 * H, null),
   ];
-  return { rooms, bookings, orders, bills, cleaning, checkouts: [], cats, items, settings: { enabled: true, opens_at: '00:00', closes_at: '00:00' }, feedback, emails: [], members: [], wifi: { ssid: 'HotelPilot_Guest', password: 'Nordlys2026' }, payments: [], devices, images: {} };
+  return { rooms, bookings, orders, bills, cleaning, checkouts: [], cats, items, settings: { enabled: true, opens_at: '00:00', closes_at: '00:00' }, feedback, emails: [], members: [], wifi: { ssid: 'HotelPilot_Guest', password: 'Nordlys2026' }, payments: [], devices, images: {}, features: { towels: true, cleaning: true, meals: true, events: true, map: true }, announcements: [] };
 }
 
 let S: State = seed();
@@ -166,6 +168,7 @@ function guestOrder(booking: string, type: 'towels' | 'room_service', details: s
   return o.id;
 }
 
+const featuresNow = () => ({ roomservice: S.settings.enabled, ...S.features });
 const roomCare = (room: string) => {
   const latest = (xs: string[]) => xs.sort().at(-1) ?? null;
   const done = S.cleaning.filter(c => c.room_number === room && c.status === 'done');
@@ -179,6 +182,35 @@ const roomCare = (room: string) => {
 
 const H: Record<string, (a: Dict) => unknown> = {
   staff_room_care: a => roomCare(String(a['_room'])),
+  staff_features: () => featuresNow(),
+  staff_set_feature: a => {
+    const k = String(a['_key']), on = a['_enabled'];
+    if (typeof on !== 'boolean') err('INVALID_FEATURE');
+    if (k === 'roomservice') S.settings.enabled = on as boolean;
+    else if (k in S.features) S.features[k as keyof State['features']] = on as boolean;
+    else err('INVALID_FEATURE');
+    return null;
+  },
+  staff_post_announcement: a => {
+    const m = String(a['_message'] ?? '').trim();
+    if (!m || m.length > 500) err('INVALID_MESSAGE');
+    const id = uid('an');
+    S.announcements.unshift({ id, message: m, created_by: WHO, created_at: iso(Date.now()), removed_at: null });
+    return id;
+  },
+  staff_announcements: () => S.announcements.slice(0, 30),
+  staff_remove_announcement: a => { const x = S.announcements.find(n => n.id === a['_id']); if (x && !x.removed_at) x.removed_at = iso(Date.now()); return null; },
+  staff_pool_towels: a => {
+    const room = String(a['_room']), now = Date.now();
+    const b = S.bookings.find(x => x.room_number === room && x.active && !x.checked_out_at && ts(x.starts_at) <= now && ts(x.ends_at) > now) ?? err('NO_GUEST_IN_ROOM');
+    const q = typeof a['_qty'] === 'number' ? a['_qty'] : b.guests;
+    if (!Number.isInteger(q) || q < 1 || q > b.guests) err('TOWEL_LIMIT');
+    const open = S.orders.find(o => o.booking_id === b.id && o.type === 'towels' && !o.cancelled && openOrderStatuses.includes(o.status));
+    if (open) { open.status = 'done'; open.updated_at = iso(now); return open.id; }
+    const id = guestOrder(b.id, 'towels', `${q} poolhåndklæder til bytte`, { quantity: q });
+    const o = S.orders.find(x => x.id === id)!; o.status = 'done'; o.updated_at = iso(now);
+    return id;
+  },
   staff_who: () => ({ name: WHO, role: 'manager' }),
 
   staff_dashboard: () => {
@@ -490,7 +522,7 @@ const H: Record<string, (a: Dict) => unknown> = {
   staff_set_master_pin: () => null,
 };
 
-const MUTATING = /^(staff_(set|check_in|bill_pay|bill_add|menu_item_image|bill_edit|bill_void|checkout|menu_.*(save|delete)|roomservice|member_(save|delete)|mock|room_rate))/;
+const MUTATING = /^(staff_(post_announcement|remove_announcement|pool_towels|set|check_in|bill_pay|bill_add|menu_item_image|bill_edit|bill_void|checkout|menu_.*(save|delete)|roomservice|member_(save|delete)|mock|room_rate))/;
 
 /** Samme form som supabase.rpc, så personalesiden kan bruge den uændret. */
 export async function demoRpc<T = unknown>(name: string, args: Dict): Promise<{ data: T | null; error: { message?: string } | null }> {
@@ -536,6 +568,7 @@ export const demoGuest = {
   },
   orderTowels(qty: number) {
     const b = demoGuest.booking();
+    if (!S.features.towels) err('FEATURE_OFF');
     if (!Number.isInteger(qty) || qty < 1 || qty > b.guests) err('TOWEL_LIMIT');
     const last = S.orders.filter(o => o.booking_id === b.id && o.type === 'towels' && !o.cancelled && o.status !== 'cancelled').reduce((m, o) => Math.max(m, ts(o.created_at)), 0);
     if (last && last + 12 * 3600e3 > Date.now()) err('TOWEL_COOLDOWN');
@@ -543,6 +576,8 @@ export const demoGuest = {
     emit();
     return id;
   },
+  features: () => featuresNow(),
+  announcements: () => { const b = demoGuest.booking(); return S.announcements.filter(n => !n.removed_at && ts(n.created_at) > Date.now() - 24 * 3600e3 && ts(n.created_at) >= ts(b.starts_at) - 2 * 3600e3).slice(0, 5).map(n => ({ id: n.id, message: n.message, created_at: n.created_at })); },
   orders: () => S.orders.filter(o => o.booking_id === demoGuest.booking().id).sort((a, c) => ts(c.created_at) - ts(a.created_at)).slice(0, 20)
     .map(o => ({ id: o.id, type: o.type, details: o.details, status: statusOf(o), created_at: o.created_at, total_cents: o.total_cents, reject_reason: o.reject_reason })),
   cancelOrder(id: string) {
@@ -554,6 +589,7 @@ export const demoGuest = {
   cleaning: () => S.cleaning.filter(c => c.booking_id === demoGuest.booking().id).sort((a, c) => ts(c.created_at) - ts(a.created_at))[0] ?? null,
   requestCleaning(towels: number, from: Date | null, until: Date | null) {
     const b = demoGuest.booking();
+    if (!S.features.cleaning) err('FEATURE_OFF');
     if (S.cleaning.some(c => c.booking_id === b.id && ['requested', 'in_progress'].includes(c.status))) err('CLEANING_ALREADY_REQUESTED');
     if (S.cleaning.some(c => c.booking_id === b.id && c.kind === 'guest' && c.status !== 'not_reached' && ts(c.created_at) > Date.now() - 12 * 3600e3)) err('CLEANING_COOLDOWN');
     const repeat = S.cleaning.some(c => c.booking_id === b.id && c.status === 'not_reached'), now = iso(Date.now());
