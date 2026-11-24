@@ -24,3 +24,5 @@
 - Betaling af regning sker uden checkout via `staff_bill_pay` (poster markeres `paid` og knyttes til en `bill_payments`-række). Checkout betaler kun resten og lægger også en betaling i historikken. Tjek ind og ud sker kun under Ankomster & afrejser (`staff_check_in`, `staff_checkout`).
 - Billeder til menuvarer uploades fra computeren, forkleines i browseren og gemmes som data-URL i `menu_item_images`; menuen indeholder kun `image_ver`, og gæsteappen henter billedet via `menu_item_image`.
 - Gæsteinfo (`staff_guest_info`) viser personer, enheder (`devices.last_seen_at`, `unlock_count`) og aktivitet. Ingen regning eller tjek ind/ud der.
+- Roomservice lukker 2 timer før opholdet slutter (`guest_order_menu` kaster `ROOMSERVICE_STAY_ENDING`; gæsteappen viser det samme via `roomserviceStayClosed`). Telefoner (smal skærm) får kun gæsteappen: ingen personaleside, intet skift og ingen demo-tekster.
+- Værelseslisten viser kun nummer og gæst; alt andet (lejeperiode, gæster, appadgang, rengøringsstatus, regning, ordrer) ligger i rumvisningen (`staff_room_detail`). "Tjekket ud" under Ankomster & afrejser bruger `staff_checked_out`.

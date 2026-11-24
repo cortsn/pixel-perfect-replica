@@ -238,6 +238,31 @@ const H: Record<string, (a: Dict) => unknown> = {
     return { count: all.length, avg: all.length ? Math.round((all.reduce((s, f) => s + f.rating, 0) / all.length) * 10) / 10 : null,
       distribution: [5, 4, 3, 2, 1].map(r => ({ rating: r, n: all.filter(f => f.rating === r).length })), items };
   },
+  staff_checked_out: a => {
+    const days = Math.min(Math.max(Number(a['_days'] ?? 1), 1), 3650), since = dayKey(Date.now() - (days - 1) * 86400000);
+    return S.bookings.filter(b => b.checked_out_at && dayKey(ts(b.checked_out_at)) >= since).sort((x, y) => ts(y.checked_out_at!) - ts(x.checked_out_at!)).slice(0, 300).map(b => {
+      const c = S.checkouts.find(x => x.booking_id === b.id), r = S.rooms.find(x => x.number === b.room_number)!;
+      return { id: b.id, reference: b.reference, room_number: b.room_number, guest_name: b.guest_name, guests: b.guests, starts_at: b.starts_at, ends_at: b.ends_at, checked_out_at: b.checked_out_at, total_cents: c?.total_cents ?? null, due_cents: c?.due_cents ?? null, payment_method: c?.payment_method ?? null, checked_out_by: c?.checked_out_by ?? null, housekeeping_status: r.housekeeping_status };
+    });
+  },
+  staff_room_detail: a => {
+    const room = String(a['_room']), r = S.rooms.find(x => x.number === room) ?? err('ROOM_NOT_FOUND'), now = Date.now();
+    const b = S.bookings.find(x => x.room_number === room && x.active && !x.checked_out_at && ts(x.starts_at) <= now && ts(x.ends_at) > now - 7 * 86400000);
+    const nb = S.bookings.filter(x => x.room_number === room && x.active && !x.checked_out_at && ts(x.starts_at) > now).sort((x, y) => ts(x.starts_at) - ts(y.starts_at))[0];
+    const lc = S.bookings.filter(x => x.room_number === room && x.checked_out_at).sort((x, y) => ts(y.checked_out_at!) - ts(x.checked_out_at!))[0];
+    const devs = b ? S.devices.filter(d => d.booking_id === b.id) : [];
+    const live = b ? liveItems(b.id) : [];
+    const nights = b ? Math.max(1, Math.round((new Date(dayKey(ts(b.ends_at))).getTime() - new Date(dayKey(ts(b.starts_at))).getTime()) / 86400000)) : 0;
+    return {
+      room: { number: r!.number, floor: r!.floor, capacity: r!.capacity, housekeeping_status: r!.housekeeping_status, rate_cents: r!.rate_cents },
+      stay: b ? { id: b.id, reference: b.reference, guest_name: b.guest_name, guest_email: b.guest_email, guests: b.guests, starts_at: b.starts_at, ends_at: b.ends_at, checked_in_at: b.checked_in_at, overdue: ts(b.ends_at) <= now, nights, devices: devs.length, devices_max: b.guests + 2, last_seen_at: devs.map(d => d.last_seen_at).filter(Boolean).sort().at(-1) ?? null } : null,
+      bill: b ? { total_cents: sum(live), paid_cents: sum(live.filter(i => i.paid)), due_cents: sum(live.filter(i => !i.paid)), items: live.length } : null,
+      orders: b ? S.orders.filter(o => o.booking_id === b.id && !o.cancelled && openOrderStatuses.includes(o.status)).sort((x, y) => ts(x.created_at) - ts(y.created_at)).map(o => ({ id: o.id, type: o.type, details: o.details, status: o.status, quantity: o.quantity, total_cents: o.total_cents, created_at: o.created_at })) : [],
+      cleaning: S.cleaning.filter(c => c.room_number === room && ['requested', 'in_progress'].includes(c.status)).sort((x, y) => ts(x.created_at) - ts(y.created_at)).map(c => ({ id: c.id, status: c.status, kind: c.kind, created_at: c.created_at, away_from: c.away_from, away_until: c.away_until })),
+      next_booking: nb ? { id: nb.id, guest_name: nb.guest_name, reference: nb.reference, guests: nb.guests, starts_at: nb.starts_at, ends_at: nb.ends_at } : null,
+      last_checkout: lc ? { guest_name: lc.guest_name, reference: lc.reference, checked_out_at: lc.checked_out_at } : null,
+    };
+  },
   staff_bill: a => internalBill(String(a['_booking'])),
   staff_bill_pay: a => {
     const b = bookingOf(String(a['_booking'])), method = String(a['_method'] ?? '').trim();
@@ -260,21 +285,19 @@ const H: Record<string, (a: Dict) => unknown> = {
     const b = bookingOf(String(a['_booking'])), r = S.rooms.find(x => x.number === b.room_number)!;
     const devs = S.devices.filter(d => d.booking_id === b.id).sort((x, y) => ts(x.created_at) - ts(y.created_at));
     const orders = S.orders.filter(o => o.booking_id === b.id && !o.cancelled), cl = S.cleaning.filter(c => c.booking_id === b.id && c.kind === 'guest');
-    const fb = S.feedback.filter(f => f.booking_id === b.id).sort((x, y) => ts(y.created_at) - ts(x.created_at))[0] ?? null;
     const timeline: { at: string; kind: string; text: string }[] = [
       ...devs.map(d => ({ at: d.created_at, kind: 'device', text: 'Ny enhed tilknyttet rummet' })),
       ...(b.checked_in_at ? [{ at: b.checked_in_at, kind: 'checkin', text: 'Tjekket ind' }] : []),
       ...devs.filter(d => d.last_unlock_at).map(d => ({ at: d.last_unlock_at!, kind: 'unlock', text: `Låste døren op (i alt ${d.unlock_count} gange)` })),
       ...orders.map(o => ({ at: o.created_at, kind: 'order', text: o.type === 'towels' ? `Bestilte ${o.quantity} håndklæder` : `Bestilte roomservice: ${o.details.slice(0, 90)}` })),
       ...cl.map(c => ({ at: c.created_at, kind: 'cleaning', text: 'Bestilte rengøring' })),
-      ...S.feedback.filter(f => f.booking_id === b.id).map(f => ({ at: f.created_at, kind: 'review', text: `Skrev en anmeldelse (${f.rating} af 5)` })),
     ].sort((x, y) => ts(y.at) - ts(x.at)).slice(0, 40);
     return {
       booking: { id: b.id, reference: b.reference, guest_name: b.guest_name, guest_email: b.guest_email, guests: b.guests, room_number: b.room_number, starts_at: b.starts_at, ends_at: b.ends_at, checked_in_at: b.checked_in_at, checked_out_at: b.checked_out_at, breakfast_choice: b.breakfast_choice, lunch_choice: b.lunch_choice, dinner_choice: b.dinner_choice },
       room: { number: r.number, floor: r.floor, capacity: r.capacity, housekeeping_status: r.housekeeping_status },
       devices: { count: devs.length, max: b.guests + 2, items: devs.map(d => ({ id: d.id, created_at: d.created_at, last_seen_at: d.last_seen_at, last_unlock_at: d.last_unlock_at, unlock_count: d.unlock_count })) },
       activity: { orders_total: orders.length, orders_open: orders.filter(o => openOrderStatuses.includes(o.status)).length, cleaning_requests: cl.length, unlocks: devs.reduce((n, d) => n + d.unlock_count, 0),
-        last_seen_at: devs.map(d => d.last_seen_at).filter(Boolean).sort().at(-1) ?? null, review: fb ? { rating: fb.rating, comment: fb.comment, created_at: fb.created_at } : null, timeline },
+        last_seen_at: devs.map(d => d.last_seen_at).filter(Boolean).sort().at(-1) ?? null, timeline },
     };
   },
   staff_menu_item_image_set: a => {
@@ -480,6 +503,7 @@ export const demoGuest = {
   }),
   orderMenu(lines: { item_id: string; qty: number; variant: string | null; addons: string[] }[], note: string) {
     const b = demoGuest.booking();
+    if (Date.now() >= ts(b.ends_at) - 2 * 3600e3) err('ROOMSERVICE_STAY_ENDING');
     if (!S.settings.enabled || !inHours(S.settings.opens_at, S.settings.closes_at)) err('ROOMSERVICE_CLOSED');
     if (!lines.length || lines.length > 30) err('EMPTY_ORDER');
     const out: OrderLine[] = []; let details = ''; let total = 0;

@@ -9,7 +9,7 @@ type Info = {
   booking: { id: string; reference: string; guest_name: string; guest_email: string | null; guests: number; room_number: string; starts_at: string; ends_at: string; checked_in_at: string | null; checked_out_at: string | null; breakfast_choice: string | null; lunch_choice: string | null; dinner_choice: string | null };
   room: { number: string; floor: number; capacity: number; housekeeping_status: HousekeepingStatus };
   devices: { count: number; max: number; items: { id: string; created_at: string; last_seen_at: string | null; last_unlock_at: string | null; unlock_count: number }[] };
-  activity: { orders_total: number; orders_open: number; cleaning_requests: number; unlocks: number; last_seen_at: string | null; review: { rating: number; comment: string; created_at: string } | null; timeline: { at: string; kind: string; text: string }[] };
+  activity: { orders_total: number; orders_open: number; cleaning_requests: number; unlocks: number; last_seen_at: string | null; timeline: { at: string; kind: string; text: string }[] };
 };
 const MEALS: [keyof Info['booking'], string][] = [['breakfast_choice', 'Morgenmad'], ['lunch_choice', 'Frokost'], ['dinner_choice', 'Aftensmad']];
 const choiceText = (c: string | null) => (c === 'hotel' ? 'på hotellet' : c === 'out' ? 'ude' : 'ikke svaret');
@@ -61,11 +61,11 @@ export function GuestInfoDialog({ bookingId, onClose }: { bookingId: string; onC
 
             <section className={card}>
               <h3 className="flex items-center gap-2 text-lg"><DoorOpen className="h-4 w-4 text-brass" />Aktivitet</h3>
-              <ul className="mt-2 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4" aria-label="Opsummering">
+              <ul className="mt-2 grid grid-cols-3 gap-2 text-sm" aria-label="Opsummering">
                 <li className="rounded-lg bg-secondary p-2 text-center"><span className="block font-display text-2xl tabular-nums">{data.activity.orders_total}</span>ordrer{data.activity.orders_open > 0 ? ` (${data.activity.orders_open} åbne)` : ''}</li>
                 <li className="rounded-lg bg-secondary p-2 text-center"><span className="block font-display text-2xl tabular-nums">{data.activity.cleaning_requests}</span>rengøringer</li>
                 <li className="rounded-lg bg-secondary p-2 text-center"><span className="block font-display text-2xl tabular-nums">{data.activity.unlocks}</span>oplåsninger</li>
-                <li className="rounded-lg bg-secondary p-2 text-center"><span className="block font-display text-2xl tabular-nums">{data.activity.review ? `${data.activity.review.rating}/5` : '–'}</span>anmeldelse</li>
+                
               </ul>
               <p className="mt-3 text-xs text-muted-foreground">Måltider: {MEALS.map(([k, l]) => `${l} ${choiceText(b[k] as string | null)}`).join(' · ')}</p>
               {data.activity.timeline.length === 0

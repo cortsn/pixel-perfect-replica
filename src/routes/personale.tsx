@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { detectAppMode } from "@/lib/platform";
+import { detectAppMode, usePhone } from "@/lib/platform";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { StaffShell } from "@/components/staff/shell";
@@ -33,8 +33,9 @@ function Staff() {
   const { s, p } = Route.useSearch();
   const { section, page } = resolveNav(s, p);
 
-  // Gæste-appen (installeret PWA / Capacitor) har ingen personaleadgang.
-  useEffect(() => { if (detectAppMode()) navigate({ to: "/", replace: true }); }, [navigate]);
+  // Gæste-appen (installeret PWA / Capacitor) og telefoner har ingen personaleadgang.
+  const phone = usePhone();
+  useEffect(() => { if (detectAppMode() || phone) navigate({ to: "/", replace: true }); }, [navigate, phone]);
 
   useEffect(() => { setPin(sessionStorage.getItem("hp-staff")); }, []);
   if (pin === undefined) return <div className="min-h-screen bg-gradient-forest" aria-busy="true" />;

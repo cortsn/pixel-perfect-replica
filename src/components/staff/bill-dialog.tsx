@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Ban, Check, CreditCard, Pencil, Plus, Receipt, X } from 'lucide-react';
+import { Ban, Check, ChevronLeft, CreditCard, Pencil, Plus, Receipt, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
@@ -11,7 +11,7 @@ import { PaymentMethods, useLastMethod } from '@/components/staff/payment';
 type Edit = { id: string; category: BillCategory; description: string; qty: string; price: string };
 
 /** Gæstens regning: se poster, tilføje/rette/annullere, og registrere at regningen er betalt. Ingen check ind/ud her. */
-export function BillDialog({ bookingId, onClose, onChanged }: { bookingId: string; onClose: () => void; onChanged?: () => void }) {
+export function BillDialog({ bookingId, onClose, onChanged, onBack, backLabel }: { bookingId: string; onClose: () => void; onChanged?: () => void; onBack?: () => void; backLabel?: string }) {
   const { data: bill, error, reload } = useStaffData<Bill>('staff_bill', { _booking: bookingId }, 8000);
   const act = useAct();
   const [edit, setEdit] = useState<Edit | null>(null);
@@ -91,6 +91,7 @@ export function BillDialog({ bookingId, onClose, onChanged }: { bookingId: strin
     <Dialog open onOpenChange={o => { if (!o) onClose(); }}>
       <DialogContent aria-describedby="bill-desc" className="max-h-[92dvh] w-[calc(100%-1.5rem)] max-w-3xl overflow-y-auto rounded-2xl p-0">
         {step === 'pay' && payView ? payView : <div className="space-y-5 p-5 sm:p-6">
+          {onBack && <button type="button" onClick={onBack} className="-ml-1 inline-flex items-center gap-1 rounded-md py-1 pr-2 text-sm font-medium text-primary hover:underline"><ChevronLeft className="h-4 w-4" />{backLabel ?? 'Tilbage'}</button>}
           <div>
             <DialogTitle className="flex items-center gap-2 text-2xl"><Receipt className="h-5 w-5 text-brass" />Regning</DialogTitle>
             <DialogDescription id="bill-desc" className="mt-1">{b ? <>{b.guest_name} · Værelse {b.room_number} · {b.reference}</> : error ?? 'Henter…'}</DialogDescription>

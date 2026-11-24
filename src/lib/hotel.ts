@@ -111,6 +111,7 @@ export function errorText(e: { message?: string } | null) {
   if (m.includes("NOT_CHECKED_IN")) return "Tjek ind først, så virker nøglen.";
   if (m.includes("BOOKING_NOT_FOUND")) return "Opholdet findes ikke længere.";
   if (m.includes("INVALID_STAY")) return "Sluttidspunktet skal være efter starttidspunktet.";
+  if (m.includes("ROOMSERVICE_STAY_ENDING")) return "Roomservice lukker 2 timer før dit ophold slutter.";
   if (m.includes("ROOMSERVICE_CLOSED")) return "Roomservice er lukket lige nu.";
   if (m.includes("ITEM_UNAVAILABLE")) return "En af varerne er ikke tilgængelig lige nu. Opdater kurven og prøv igen.";
   if (m.includes("EMPTY_ORDER")) return "Kurven er tom.";

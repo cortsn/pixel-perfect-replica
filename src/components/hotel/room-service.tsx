@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { HotelModal } from '@/components/hotel/modal';
 import { fmtDKK } from '@/lib/money';
 import { useMenuImage } from '@/lib/menu-images';
+import { roomserviceStayClosed } from '@/lib/stay';
 import { MAX_QTY, addToCart, cartCount, cartTotal, hoursText, lineLabel, setLineQty, toOrderLines, unitPrice, type CartLine, type GuestMenu, type MenuItem } from '@/lib/menu';
 
 type Lines = ReturnType<typeof toOrderLines>;
@@ -70,7 +71,10 @@ function ItemConfig({ item, onAdd, onClose }: { item: MenuItem; onAdd: (variant:
 }
 
 /** Roomservice: menuen kommer fra hotellet (opdateres live). Bestillingen lægges på gæstens regning og betales ved check ud. */
-export function RoomService({ room, menu, busy, onSubmit }: { room: string; menu: GuestMenu | null; busy?: boolean; onSubmit: Submit }) {
+export function RoomService({ room, menu, busy, stayEndsAt, onSubmit }: { room: string; menu: GuestMenu | null; busy?: boolean; stayEndsAt?: string; onSubmit: Submit }) {
+  const [tick, setTick] = useState(() => Date.now());
+  useEffect(() => { const t = setInterval(() => setTick(Date.now()), 30000); return () => clearInterval(t); }, []);
+  const stayClosed = !!stayEndsAt && roomserviceStayClosed(stayEndsAt, tick);
   const cats = menu?.categories.filter(c => c.items.length > 0) ?? [];
   const [catId, setCatId] = useState<string | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -80,7 +84,7 @@ export function RoomService({ room, menu, busy, onSubmit }: { room: string; menu
   const cat = cats.find(c => c.id === catId) ?? cats[0];
   const total = cartTotal(cart);
   const count = cartCount(cart);
-  const open = !!menu?.settings && menu.settings.enabled && menu.settings.open_now;
+  const open = !stayClosed && !!menu?.settings && menu.settings.enabled && menu.settings.open_now;
   // Menuen kan ændre sig, mens gæsten bestiller: fjern varer, der ikke findes længere, og opdater priser.
   useEffect(() => {
     if (!menu) return;
@@ -95,7 +99,7 @@ export function RoomService({ room, menu, busy, onSubmit }: { room: string; menu
   if (!menu) return <p className="py-6 text-center text-sm text-muted-foreground">Henter menuen…</p>;
   const closedBanner = !open && (
     <p role="status" className="flex items-start gap-2 rounded-lg bg-secondary p-3 text-sm"><Clock className="mt-0.5 h-4 w-4 shrink-0 text-brass" />
-      {menu.settings && !menu.settings.enabled ? 'Roomservice er lukket lige nu.' : `Roomservice er lukket. Vi åbner kl. ${menu.settings?.opens_at ?? ''}.`}</p>
+      {stayClosed ? 'Roomservice er lukket, fordi dit ophold slutter om mindre end 2 timer.' : menu.settings && !menu.settings.enabled ? 'Roomservice er lukket lige nu.' : `Roomservice er lukket. Vi åbner kl. ${menu.settings?.opens_at ?? ''}.`}</p>
   );
 
   async function submit() {

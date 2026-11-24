@@ -22,12 +22,13 @@ import { categoryLabel } from "@/lib/billing";
 import { errorText, HOUSEKEEPING_LABELS, MEAL_FIELD, type Meal, type OrderStatus } from "@/lib/hotel";
 import { fmtDKK } from "@/lib/money";
 import { shareLink } from "@/lib/share";
-import { cancellable, cleaningNextAt, hm, towelNextAt } from "@/lib/stay";
+import { usePhone } from "@/lib/platform";
+import { cancellable, cleaningNextAt, hm, roomserviceStayClosed, towelNextAt } from "@/lib/stay";
 
 export const Route = createFileRoute("/demo")({
   head: () => ({
     meta: [
-      { title: "Demo — HotelPilot" },
+      { title: "HotelPilot" },
       { name: "description", content: "Se og afprøv HotelPilot med eksempeldata. Intet gemmes." },
       { name: "robots", content: "noindex" },
     ],
@@ -45,6 +46,7 @@ function Demo() {
   const [ready, setReady] = useState(false);
   const [view, setView] = useState<"guest" | "staff">("guest");
   const [nav, setNav] = useState(() => resolveNav("dashboard"));
+  const phone = usePhone();
   useEffect(() => {
     // Personalesiden bruger de samme sider som den rigtige side, men med demo-databasen som datakilde.
     demoStore.reset();
@@ -52,7 +54,9 @@ function Demo() {
     setReady(true);
     return () => setRpcBackend(null);
   }, []);
-  if (!ready) return <div className="min-h-screen" aria-busy="true" />;
+  if (!ready || phone === null) return <div className="min-h-screen" aria-busy="true" />;
+  // På telefonen vises kun gæsteappen: ingen skift til personale og ingen demo-tekster.
+  if (phone) return <div className="min-h-screen"><GuestDemo /></div>;
 
   const bar = (
     <>
@@ -140,11 +144,11 @@ function GuestDemo() {
         {notice}
         <section id="noegle" className="rounded-2xl border bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between"><p className="eyebrow text-muted-foreground">Digital nøgle · Værelse {b.room_number}</p><span className="flex items-center gap-1 text-xs text-status-clean"><Check className="h-4 w-4" />Aktiv</span></div>
-          <Button className="mt-3 h-16 w-full rounded-full bg-gradient-brass text-lg font-semibold text-accent-foreground shadow-soft" onClick={() => { demoGuest.unlock(); toast("Demo: døren er låst op"); }}><KeyRound className="!h-6 !w-6" />Lås dør op</Button>
+          <Button className="mt-3 h-16 w-full rounded-full bg-gradient-brass text-lg font-semibold text-accent-foreground shadow-soft" onClick={() => { demoGuest.unlock(); toast("Døren er låst op"); }}><KeyRound className="!h-6 !w-6" />Lås dør op</Button>
         </section>
         <SettingsGroup title="Bestil">
           <SettingsRow Icon={ShowerHead} tone="primary" title="Håndklæder" value={towelNext ? `Igen kl. ${hm(new Date(towelNext).toISOString())}` : `op til ${guests}`} onClick={() => { setQty(Math.max(1, Math.min(qty, guests))); setSheet("towels"); }} />
-          <SettingsRow Icon={Utensils} tone="brass" title="Room service" value={menu.settings && !menu.settings.open_now ? `Åbner ${menu.settings.opens_at}` : "Mad og drikke"} onClick={() => setSheet("food")} />
+          <SettingsRow Icon={Utensils} tone="brass" title="Room service" value={roomserviceStayClosed(b.ends_at, now) ? "Lukket" : menu.settings && !menu.settings.open_now ? `Åbner ${menu.settings.opens_at}` : "Mad og drikke"} onClick={() => setSheet("food")} />
           <SettingsRow Icon={Sparkles} tone="clean" title="Rengøring" value={HOUSEKEEPING_LABELS[room.housekeeping_status]} onClick={() => setSheet("clean")} />
           <SettingsRow Icon={ReceiptText} tone="forest" title="Din regning" value={fmtDKK(bill.total_cents)} onClick={() => setSheet("bill")} />
           {orders.length > 0 && <SettingsRow Icon={ClipboardList} tone="forest" title="Dine bestillinger" badge={activeOrders} value={activeOrders ? undefined : String(orders.length)} onClick={() => setSheet("orders")} />}
@@ -172,7 +176,7 @@ function GuestDemo() {
           {towelNext && <p role="status" className="rounded-md bg-secondary p-3 text-sm">Du har allerede bestilt håndklæder. Du kan bestille igen kl. {hm(new Date(towelNext).toISOString())}.</p>}
           <Button className="w-full" disabled={!!towelNext} onClick={() => run(() => { demoGuest.orderTowels(qty); toast.success("Din bestilling er modtaget"); close(); })}>Bestil {qty} {qty === 1 ? "håndklæde" : "håndklæder"}</Button>
         </PageCard>}
-        {sheet === "food" && <PageCard><RoomService room={b.room_number} menu={menu} onSubmit={(lines, note) => { try { demoGuest.orderMenu(lines, note); toast.success("Din bestilling er modtaget og lægges på din regning"); close(); return true; } catch (e) { toast.error(errorText(e as Error)); return false; } }} /></PageCard>}
+        {sheet === "food" && <PageCard><RoomService room={b.room_number} menu={menu} stayEndsAt={b.ends_at} onSubmit={(lines, note) => { try { demoGuest.orderMenu(lines, note); toast.success("Din bestilling er modtaget og lægges på din regning"); close(); return true; } catch (e) { toast.error(errorText(e as Error)); return false; } }} /></PageCard>}
         {sheet === "clean" && <>
           <PageCard><p className="text-sm">Almindelige værelseshåndklæder skiftes ved rengøring.</p>{cleaning && <CleaningStatusNote req={cleaning} />}</PageCard>
           {!cleaningOpen && (cleaningNext
@@ -201,7 +205,7 @@ function GuestDemo() {
           <div className="flex justify-center rounded-lg bg-secondary p-5"><QRCodeSVG value="https://hotelpilot.example/gaest?t=demo" size={180} bgColor="transparent" fgColor="currentColor" /></div>
           <Button variant="outline" className="w-full" onClick={async () => { const r = await shareLink({ title: "HotelPilot", text: `Her er adgang til værelse ${b.room_number} på HotelPilot:`, url: "https://hotelpilot.example/gaest?t=demo" }); if (r === "copied") toast.success("Link kopieret"); else if (r === "failed") toast.error("Linket kunne ikke deles"); }}><Share2 />Del link</Button>
         </PageCard>}
-        {sheet === "rooms" && <PageCard><RoomSwitcher rooms={[{ t: "a", d: "a", room: b.room_number, name: "Anna Nielsen" }, { t: "b", d: "b", room: "102", name: "Anna Nielsen" }]} active="a" onOpen={() => toast("Demo: her skifter appen til værelse 102 med dets eget kontrolsystem")} onAdd={() => toast("Demo: her logger du ind med endnu et bookingnummer")} /></PageCard>}
+        {sheet === "rooms" && <PageCard><RoomSwitcher rooms={[{ t: "a", d: "a", room: b.room_number, name: "Anna Nielsen" }, { t: "b", d: "b", room: "102", name: "Anna Nielsen" }]} active="a" onOpen={() => toast("Du skifter til værelse 102")} onAdd={() => toast("Her tilføjer du et værelse med endnu et bookingnummer")} /></PageCard>}
       </SubPage>}
     </div>
   );

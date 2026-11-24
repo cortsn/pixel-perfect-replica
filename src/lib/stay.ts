@@ -33,6 +33,11 @@ export function towelNextAt(orders: { type: string; status: string; created_at: 
   const next = last + TOWEL_COOLDOWN_MS;
   return last > 0 && next > now ? next : null;
 }
+/** Roomservice lukker 2 timer før opholdet slutter. */
+export const ROOMSERVICE_CUTOFF_MS = 2 * 60 * 60 * 1000;
+export const roomserviceClosesAt = (endsAt: string) => Date.parse(endsAt) - ROOMSERVICE_CUTOFF_MS;
+export const roomserviceStayClosed = (endsAt: string, now: number) => now >= roomserviceClosesAt(endsAt);
+
 /** Rengøring kan bestilles 1 gang hver 12. time. Er den forrige bestilling "ikke nået", må gæsten bestille igen med det samme. */
 export function cleaningNextAt(req: { status: string; created_at: string; kind?: string } | null, now: number): number | null {
   if (!req || req.status === 'not_reached' || req.kind === 'checkout') return null;

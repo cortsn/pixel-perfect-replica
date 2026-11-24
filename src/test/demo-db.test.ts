@@ -243,6 +243,50 @@ describe('demo-database: samme regler som SQL', () => {
     expect(demoGuest.menu().categories.flatMap(c => c.items).find(i => i.id === 'i-club')!.image_ver).toBeNull();
   });
 
+  it('roomservice lukker 2 timer før opholdet slutter', async () => {
+    const b = demoGuest.booking();
+    b.starts_at = new Date(Date.now() - 3600e3).toISOString();
+    b.ends_at = new Date(Date.now() + 119 * 60e3).toISOString();
+    expect(() => demoGuest.orderMenu([{ item_id: 'i-suppe', qty: 1, variant: null, addons: [] }], '')).toThrow('ROOMSERVICE_STAY_ENDING');
+    b.ends_at = new Date(Date.now() + 3 * 3600e3).toISOString();
+    expect(() => demoGuest.orderMenu([{ item_id: 'i-suppe', qty: 1, variant: null, addons: [] }], '')).not.toThrow();
+  });
+
+  it('tjekket ud: seneste først med beløb, og filter på dage', async () => {
+    const g = await inHouse('203');
+    await call('staff_bill_pay', { _booking: g.id, _method: 'Kontant', _note: '' });
+    await call('staff_checkout', { _booking: g.id, _method: '', _note: '' });
+    const today = await call('staff_checked_out', { _days: 1 });
+    expect(today).toHaveLength(1);
+    expect(today[0]).toMatchObject({ room_number: '203', guest_name: 'Maria Holm', total_cents: 7000, payment_method: '' });
+    expect(today[0].checked_out_at).toBeTruthy();
+    demoStore._state().bookings.find(x => x.id === g.id)!.checked_out_at = new Date(Date.now() - 3 * 86400e3).toISOString();
+    expect(await call('staff_checked_out', { _days: 1 })).toHaveLength(0);
+    expect(await call('staff_checked_out', { _days: 7 })).toHaveLength(1);
+  });
+
+  it('rumdetaljer: lejeperiode, gæster, enheder, regning, ordrer og næste/seneste gæst', async () => {
+    const d = await call('staff_room_detail', { _room: '201' });
+    expect(d.stay).toMatchObject({ guest_name: 'Mads Jensen', guests: 2, devices: 2, devices_max: 4, overdue: false });
+    expect(d.stay.nights).toBeGreaterThanOrEqual(1);
+    expect(d.orders).toHaveLength(1);
+    expect(d.bill).toMatchObject({ due_cents: 0 });
+    const empty = await call('staff_room_detail', { _room: '104' });
+    expect(empty).toMatchObject({ stay: null, bill: null, orders: [] });
+    const arriving = await call('staff_room_detail', { _room: '303' });
+    expect(arriving.next_booking).toMatchObject({ guest_name: 'Jens Aaby' });
+    expect(await fails('staff_room_detail', { _room: '999' })).toBe('ROOM_NOT_FOUND');
+    const g = await inHouse('201');
+    await call('staff_bill_add', { _booking: g.id, _category: 'minibar', _description: 'Cola', _qty: 1, _unit_cents: 3500 });
+    expect((await call('staff_room_detail', { _room: '201' })).bill).toMatchObject({ total_cents: 3500, due_cents: 3500, items: 1 });
+  });
+
+  it('gæsteinfo viser ingen anmeldelse (de skrives først efter opholdet)', async () => {
+    const info = await call('staff_guest_info', { _booking: demoStore._state().bookings.find(b => b.room_number === '201')!.id });
+    expect(Object.keys(info.activity)).not.toContain('review');
+    expect(info.activity.timeline.some((t: { kind: string }) => t.kind === 'review')).toBe(false);
+  });
+
   it('medarbejdere: unik kode og gyldig rolle', async () => {
     const id = await call('staff_member_save', { _id: null, _name: 'Mette', _role: 'kitchen', _new_pin: '5678', _active: true });
     expect(await fails('staff_member_save', { _id: null, _name: 'Y', _role: 'reception', _new_pin: '5678', _active: true })).toBe('PIN_TAKEN');

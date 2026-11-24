@@ -83,6 +83,7 @@ export function StaffShell({ pin, section, page, onNavigate, onLogout, demoBar }
   const [billFor, setBillFor] = useState<string | null>(null);
   const [guestFor, setGuestFor] = useState<string | null>(null);
   const [checkoutFor, setCheckoutFor] = useState<string | null>(null);
+  const [backToCheckout, setBackToCheckout] = useState<string | null>(null); // regningen er åbnet fra tjek ud: vis en pil tilbage
 
   const reloadDash = useCallback(async () => {
     const { data } = await rpc<Dash>('staff_dashboard', { _pin: pin });
@@ -159,9 +160,9 @@ export function StaffShell({ pin, section, page, onNavigate, onLogout, demoBar }
             <Sidebar section={section} page={page} dash={dash} me={me} onPick={go} onLogout={onLogout} />
           </SheetContent>
         </Sheet>
-        {billFor && <BillDialog bookingId={billFor} onClose={() => setBillFor(null)} />}
+        {billFor && <BillDialog bookingId={billFor} onClose={() => { setBillFor(null); setBackToCheckout(null); }} {...(backToCheckout === billFor ? { onBack: () => { setBillFor(null); setCheckoutFor(backToCheckout); setBackToCheckout(null); }, backLabel: 'Tilbage til tjek ud' } : {})} />}
         {guestFor && <GuestInfoDialog bookingId={guestFor} onClose={() => setGuestFor(null)} />}
-        {checkoutFor && <CheckoutDialog bookingId={checkoutFor} onClose={() => setCheckoutFor(null)} onOpenBill={() => setBillFor(checkoutFor)} />}
+        {checkoutFor && <CheckoutDialog bookingId={checkoutFor} onClose={() => setCheckoutFor(null)} onOpenBill={() => { setBackToCheckout(checkoutFor); setBillFor(checkoutFor); }} />}
       </div>
     </StaffProvider>
   );

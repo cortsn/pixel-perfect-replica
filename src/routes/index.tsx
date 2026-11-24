@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import hero from "@/assets/hero.jpg";
 import { guestLogin, saveSession } from "@/lib/hotel";
-import { useAppMode } from "@/lib/platform";
+import { useAppMode, usePhone } from "@/lib/platform";
 import { InstallHint } from "@/components/hotel/install-hint";
 import { Logo } from "@/components/hotel/logo";
 
@@ -27,6 +27,7 @@ function Login() {
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const appMode = useAppMode();
+  const phone = usePhone();
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -50,7 +51,7 @@ function Login() {
       <div className="relative mx-auto flex min-h-screen max-w-md flex-col justify-between px-6 pb-[calc(env(safe-area-inset-bottom)+2.5rem)] pt-[calc(env(safe-area-inset-top)+2.5rem)]">
         <div className="flex items-center justify-between">
           <Logo />
-          {appMode === false && <Link to="/personale" className="eyebrow text-brass">Personale</Link>}
+          {appMode === false && phone === false && <Link to="/personale" className="eyebrow text-brass">Personale</Link>}
         </div>
         <div>
           <p className="eyebrow text-brass">Velkommen</p>
@@ -63,7 +64,7 @@ function Login() {
               {busy ? "Logger ind…" : "Log ind"}
             </button>
           </form>
-          <p className="mt-5 text-center text-sm"><Link to="/demo" className="text-brass underline">Prøv demo (ingen data gemmes)</Link></p>
+          {phone === false && <p className="mt-5 text-center text-sm"><Link to="/demo" className="text-brass underline">Prøv demo (ingen data gemmes)</Link></p>}
           {appMode === false && <InstallHint />}
         </div>
       </div>

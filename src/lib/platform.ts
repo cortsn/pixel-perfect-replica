@@ -25,3 +25,23 @@ export function isIos(): boolean {
   if (typeof navigator === "undefined") return false;
   return /iphone|ipad|ipod/i.test(navigator.userAgent);
 }
+
+/** Er skærmen en telefon (smal skærm)? Personale- og demovisning er ikke til telefonen, kun gæsteappen. */
+export const PHONE_MAX_WIDTH = 767;
+export function isPhone(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia?.(`(max-width: ${PHONE_MAX_WIDTH}px)`).matches ?? window.innerWidth <= PHONE_MAX_WIDTH;
+}
+
+/** `null` før klienten har målt, derefter true/false. Opdateres, hvis vinduet ændrer størrelse. */
+export function usePhone(): boolean | null {
+  const [phone, setPhone] = useState<boolean | null>(null);
+  useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${PHONE_MAX_WIDTH}px)`);
+    const update = () => setPhone(isPhone());
+    update();
+    mql.addEventListener("change", update);
+    return () => mql.removeEventListener("change", update);
+  }, []);
+  return phone;
+}

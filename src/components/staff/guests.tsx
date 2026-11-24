@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Check, Info, LogIn, LogOut, Search } from 'lucide-react';
+import { AlertTriangle, Check, Info, LogIn, LogOut, Receipt, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { rpc } from '@/lib/cleaning';
@@ -87,9 +87,17 @@ export const departureDue = (g: GuestRow, w: Window, now: number) => (g.in_house
 /** Kan gæsten tjekkes ud med ét tryk (og en bekræftelse)? Intet at betale og ingen åbne roomserviceordrer. */
 export const quickCheckout = (g: GuestRow) => (g.balance_cents ?? 0) <= 0 && (g.open_orders ?? 0) === 0;
 
+type Mode = 'arrivals' | 'departures' | 'checkedout';
+type CoWin = 'today' | 'week' | 'all';
+const CO_WINDOWS: [CoWin, string, number][] = [['today', 'I dag', 1], ['week', 'Seneste 7 dage', 7], ['all', 'Alle', 3650]];
+export type CheckedOut = { id: string; reference: string; room_number: string; guest_name: string; guests: number; starts_at: string; ends_at: string; checked_out_at: string; total_cents: number | null; due_cents: number | null; payment_method: string | null; checked_out_by: string | null; housekeeping_status: string };
+
 const PREFS = 'hp-arrivals';
-const readPrefs = (): { mode: 'arrivals' | 'departures'; win: Window } => {
-  try { const p = JSON.parse(localStorage.getItem(PREFS) ?? '{}') as { mode?: string; win?: string }; return { mode: p.mode === 'departures' ? 'departures' : 'arrivals', win: p.win === 'today' || p.win === 'all' ? p.win : 'soon' }; } catch { return { mode: 'arrivals', win: 'soon' }; }
+const readPrefs = (): { mode: Mode; win: Window; coWin: CoWin } => {
+  try {
+    const p = JSON.parse(localStorage.getItem(PREFS) ?? '{}') as { mode?: string; win?: string; coWin?: string };
+    return { mode: p.mode === 'departures' || p.mode === 'checkedout' ? p.mode : 'arrivals', win: p.win === 'today' || p.win === 'all' ? p.win : 'soon', coWin: p.coWin === 'week' || p.coWin === 'all' ? p.coWin : 'today' };
+  } catch { return { mode: 'arrivals', win: 'soon', coWin: 'today' }; }
 };
 
 /**
@@ -99,12 +107,14 @@ const readPrefs = (): { mode: 'arrivals' | 'departures'; win: Window } => {
  * Tjek ud uden saldo og uden åbne ordrer tager to tryk (med bekræftelse); ellers åbnes en kompakt betalingsvisning.
  */
 export function ArrivalsPage() {
-  const { openGuest, openCheckout, reloadDash } = useStaff();
+  const { openGuest, openCheckout, openBill, reloadDash } = useStaff();
   const { pin } = useStaff();
   const { data, error, reload } = useStaffData<GuestRow[]>('staff_guests', {}, 5000);
   const prefs = useMemo(readPrefs, []);
-  const [mode, setMode] = useState(prefs.mode);
+  const [mode, setMode] = useState<Mode>(prefs.mode);
   const [win, setWin] = useState<Window>(prefs.win);
+  const [coWin, setCoWin] = useState<CoWin>(prefs.coWin);
+  const checkedOut = useStaffData<CheckedOut[]>('staff_checked_out', { _days: CO_WINDOWS.find(w => w[0] === coWin)![2] }, 8000);
   const [q, setQ] = useState('');
   const [now, setNow] = useState(() => Date.now());
   const [gone, setGone] = useState<Set<string>>(new Set()); // rækker, der allerede er behandlet, men serveren ikke har svaret endnu
@@ -113,14 +123,16 @@ export function ArrivalsPage() {
   const search = useRef<HTMLInputElement>(null);
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 20000); return () => clearInterval(t); }, []);
   useEffect(() => { search.current?.focus(); }, []);
-  useEffect(() => { try { localStorage.setItem(PREFS, JSON.stringify({ mode, win })); } catch { /* ingen lagring */ } }, [mode, win]);
+  useEffect(() => { try { localStorage.setItem(PREFS, JSON.stringify({ mode, win, coWin })); } catch { /* ingen lagring */ } }, [mode, win, coWin]);
   useEffect(() => () => clearTimeout(timer.current), []);
 
   const all = (data ?? []).filter(g => !gone.has(g.id));
-  const match = (g: GuestRow) => `${g.guest_name} ${g.room_number} ${g.reference}`.toLowerCase().includes(q.trim().toLowerCase());
+  const match = (g: { guest_name: string; room_number: string; reference: string }) => `${g.guest_name} ${g.room_number} ${g.reference}`.toLowerCase().includes(q.trim().toLowerCase());
   const arrivals = useMemo(() => all.filter(g => arrivalDue(g, win, now)).sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at)), [all, win, now]);
   const departures = useMemo(() => all.filter(g => departureDue(g, win, now)).sort((a, b) => Date.parse(a.ends_at) - Date.parse(b.ends_at)), [all, win, now]);
-  const rows = (mode === 'arrivals' ? arrivals : departures).filter(match);
+  const rows = (mode === 'arrivals' ? arrivals : mode === 'departures' ? departures : []).filter(match);
+  const outRows = (checkedOut.data ?? []).filter(match);
+  const outToday = (checkedOut.data ?? []).filter(g => sameDay(g.checked_out_at, new Date(now))).length;
 
   const hide = (id: string, on: boolean) => setGone(s => { const n = new Set(s); if (on) n.add(id); else n.delete(id); return n; });
   const checkIn = useCallback(async (g: GuestRow) => {
@@ -150,21 +162,43 @@ export function ArrivalsPage() {
 
   return (
     <>
-      <PageTitle title="Ankomster & afrejser" hint="Her tjekkes gæster ind og ud. Den der skal først, står øverst." />
+      <PageTitle title="Ankomster & afrejser" hint="Her tjekkes gæster ind og ud. Den der skal først, står øverst. Under Tjekket ud ser du dem, der er tjekket ud." />
       <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-20 -mx-4 mb-3 flex flex-wrap items-center gap-2 bg-background/95 px-4 py-2 backdrop-blur lg:-mx-8 lg:px-8">
         <div className="flex rounded-lg border p-0.5" role="tablist" aria-label="Ankomster eller afrejser">
-          {([['arrivals', `Ankomster (${arrivals.length})`], ['departures', `Afrejser (${departures.length})`]] as const).map(([m, l]) => <Button key={m} size="sm" role="tab" aria-selected={mode === m} variant={mode === m ? 'default' : 'ghost'} onClick={() => setMode(m)}>{l}</Button>)}
+          {([['arrivals', `Ankomster (${arrivals.length})`], ['departures', `Afrejser (${departures.length})`], ['checkedout', `Tjekket ud (${outToday})`]] as const).map(([m, l]) => <Button key={m} size="sm" role="tab" aria-selected={mode === m} variant={mode === m ? 'default' : 'ghost'} onClick={() => setMode(m)}>{l}</Button>)}
         </div>
         <label className="flex items-center gap-2 text-sm text-muted-foreground">Vis
-          <select aria-label="Tidsrum" className={field} value={win} onChange={e => setWin(e.target.value as Window)}>{WINDOWS.map(([w, l]) => <option key={w} value={w}>{l}</option>)}</select>
+          {mode === 'checkedout'
+            ? <select aria-label="Tidsrum" className={field} value={coWin} onChange={e => setCoWin(e.target.value as CoWin)}>{CO_WINDOWS.map(([w, l]) => <option key={w} value={w}>{l}</option>)}</select>
+            : <select aria-label="Tidsrum" className={field} value={win} onChange={e => setWin(e.target.value as Window)}>{WINDOWS.map(([w, l]) => <option key={w} value={w}>{l}</option>)}</select>}
         </label>
         <label className="relative ml-auto block w-full min-w-48 sm:w-72"><span className="sr-only">Søg gæst</span><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <input ref={search} value={q} onChange={e => setQ(e.target.value)} placeholder="Søg navn, værelse eller booking" aria-keyshortcuts="Enter Escape"
-            onKeyDown={e => { if (e.key === 'Escape') setQ(''); if (e.key === 'Enter' && rows.length === 1) primary(rows[0]!); }}
+            onKeyDown={e => { if (e.key === 'Escape') setQ(''); if (e.key === 'Enter' && mode !== 'checkedout' && rows.length === 1) primary(rows[0]!); }}
             className={`${field} pl-9`} /></label>
       </div>
-      {q && rows.length === 1 && <p className="mb-2 text-xs text-muted-foreground">Tryk Enter for at tjekke {rows[0]!.guest_name} {mode === 'arrivals' ? 'ind' : 'ud'}.</p>}
-      <ul className="space-y-2" aria-live="polite">
+      {q && mode !== 'checkedout' && rows.length === 1 && <p className="mb-2 text-xs text-muted-foreground">Tryk Enter for at tjekke {rows[0]!.guest_name} {mode === 'arrivals' ? 'ind' : 'ud'}.</p>}
+      {mode === 'checkedout' && (
+        <ul className="space-y-2" aria-live="polite">
+          {outRows.map(g => (
+            <li key={g.id} className={`${card} flex flex-wrap items-center gap-x-4 gap-y-2 py-3`}>
+              <div className="w-24 shrink-0"><p className="font-display text-2xl leading-none tabular-nums">{hm(g.checked_out_at)}</p><p className="mt-1 text-xs text-muted-foreground">{sameDay(g.checked_out_at, new Date(now)) ? relativeTime(Date.parse(g.checked_out_at) - now) : dayTime(g.checked_out_at).split(',')[0]}</p></div>
+              <div className="font-display text-3xl leading-none">{g.room_number}</div>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold">{g.guest_name}</p>
+                <p className="text-xs text-muted-foreground">{g.reference} · {g.guests} {g.guests === 1 ? 'gæst' : 'gæster'} · {dayTime(g.starts_at)} – {dayTime(g.checked_out_at)}</p>
+                <p className="text-xs text-muted-foreground">{g.total_cents === null ? 'Ingen regning gemt' : `Regning ${fmtDKK(g.total_cents)}${g.payment_method ? ` · betalt via ${g.payment_method}` : ' · intet betalt'}`}{g.checked_out_by ? ` · af ${g.checked_out_by}` : ''}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" className="h-10" onClick={() => openBill(g.id)}><Receipt />Se regning</Button>
+                <Button size="icon" variant="outline" className="h-10 w-10" aria-label={`Gæsteinfo for ${g.guest_name}`} onClick={() => openGuest(g.id)}><Info /></Button>
+              </div>
+            </li>
+          ))}
+          {outRows.length === 0 && <li className={`${card} py-10 text-center text-sm text-muted-foreground`}>{checkedOut.error ?? (checkedOut.data ? (q ? 'Ingen gæster matcher søgningen' : 'Ingen er tjekket ud i det valgte tidsrum') : 'Henter…')}</li>}
+        </ul>
+      )}
+      {mode !== 'checkedout' && <ul className="space-y-2" aria-live="polite">
         {rows.map(g => {
           const at = mode === 'arrivals' ? g.starts_at : g.ends_at;
           const diff = Date.parse(at) - now;
@@ -194,7 +228,7 @@ export function ArrivalsPage() {
           );
         })}
         {rows.length === 0 && <li className={`${card} py-10 text-center text-sm text-muted-foreground`}>{error ?? (data ? (q ? 'Ingen gæster matcher søgningen' : mode === 'arrivals' ? 'Ingen ankomster i det valgte tidsrum' : 'Ingen afrejser i det valgte tidsrum') : 'Henter…')}</li>}
-      </ul>
+      </ul>}
     </>
   );
 }

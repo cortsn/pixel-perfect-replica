@@ -45,7 +45,7 @@ describe('bill', () => {
 });
 
 import { towelText } from '@/lib/cleaning';
-import { cleaningNextAt, TOWEL_COOLDOWN_MS } from '@/lib/stay';
+import { cleaningNextAt, roomserviceStayClosed, TOWEL_COOLDOWN_MS } from '@/lib/stay';
 import { resolveNav } from '@/components/staff/core';
 import { arrivalDue, departureDue, relativeTime, type GuestRow } from '@/components/staff/guests';
 
@@ -81,6 +81,13 @@ describe('rengøring, navigation og ankomster', () => {
     expect(departureDue(g({ in_house: true, ends_at: new Date(t0 + 5 * 3600e3).toISOString() }), 'soon', t0)).toBe(false);
     expect(departureDue(g({ overdue: true, ends_at: new Date(t0 - 3600e3).toISOString() }), 'soon', t0)).toBe(true);
     expect(departureDue(g({ in_house: false }), 'all', t0)).toBe(false);
+  });
+  it('roomservice lukker præcis 2 timer før opholdet slutter', () => {
+    const end = new Date(t0 + 5 * 3600e3).toISOString();
+    expect(roomserviceStayClosed(end, t0)).toBe(false);
+    expect(roomserviceStayClosed(end, t0 + 3 * 3600e3 - 1)).toBe(false);
+    expect(roomserviceStayClosed(end, t0 + 3 * 3600e3)).toBe(true);
+    expect(roomserviceStayClosed(end, t0 + 4 * 3600e3)).toBe(true);
   });
   it('tid til/siden', () => { expect(relativeTime(80 * 60e3)).toBe('om 1 t 20 min'); expect(relativeTime(-15 * 60e3)).toBe('for 15 min siden'); expect(relativeTime(10e3)).toBe('nu'); });
 });
