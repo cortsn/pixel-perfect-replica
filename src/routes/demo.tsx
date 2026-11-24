@@ -134,7 +134,7 @@ function GuestDemo() {
 
   return (
     <div className="mx-auto max-w-md pb-[calc(env(safe-area-inset-bottom)+2rem)]">
-      <header className="rounded-b-3xl bg-gradient-forest px-6 pb-7 pt-7 text-forest-foreground">
+      <header className="rounded-b-3xl bg-gradient-forest px-6 pb-7 pt-[calc(env(safe-area-inset-top)+1.75rem)] text-forest-foreground">
         <Logo />
         <p className="eyebrow mt-6 text-brass">Værelse {b.room_number}</p>
         <h1 className="mt-2 text-4xl">Velkommen, Anna</h1>
