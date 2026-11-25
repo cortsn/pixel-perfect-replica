@@ -19,6 +19,7 @@ import { CleaningForm, CleaningStatusNote } from "@/components/hotel/guest-reque
 import { CheckInScreen, StayEndTimer, StayNotice, WaitingScreen } from "@/components/hotel/stay";
 import { setRpcBackend, type CleaningRequest } from "@/lib/cleaning";
 import { DEMO_PIN, demoGuest, demoRpc, demoStore } from "@/lib/demo-db";
+import { sendDoorOpen } from "@/lib/door-signal";
 import { categoryLabel } from "@/lib/billing";
 import { errorText, HOUSEKEEPING_LABELS, MEAL_FIELD, type Meal, type OrderStatus } from "@/lib/hotel";
 import { fmtDKK } from "@/lib/money";
@@ -147,7 +148,7 @@ function GuestDemo() {
         {notice}
         <section id="noegle" className="rounded-2xl border bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between"><p className="eyebrow text-muted-foreground">Digital nøgle · Værelse {b.room_number}</p><span className="flex items-center gap-1 text-xs text-status-clean"><Check className="h-4 w-4" />Aktiv</span></div>
-          <Button className="mt-3 h-16 w-full rounded-full bg-gradient-brass text-lg font-semibold text-accent-foreground shadow-soft" onClick={() => { demoGuest.unlock(); toast("Døren er låst op"); }}><KeyRound className="!h-6 !w-6" />Lås dør op</Button>
+          <Button className="mt-3 h-16 w-full rounded-full bg-gradient-brass text-lg font-semibold text-accent-foreground shadow-soft" onClick={() => { demoGuest.unlock(); void sendDoorOpen(); toast("Døren er låst op"); }}><KeyRound className="!h-6 !w-6" />Lås dør op</Button>
         </section>
         <SettingsGroup title="Bestil">
           {features.towels && <SettingsRow Icon={ShowerHead} tone="primary" title="Håndklæder" value={towelNext ? `Igen kl. ${hm(new Date(towelNext).toISOString())}` : `op til ${guests}`} onClick={() => { setQty(Math.max(1, Math.min(qty, guests))); setSheet("towels"); }} />}

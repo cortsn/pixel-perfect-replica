@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DemoRouteImport } from './routes/demo'
+import { Route as DorRouteImport } from './routes/dor'
 import { Route as GaestRouteImport } from './routes/gaest'
 import { Route as PersonaleRouteImport } from './routes/personale'
 
@@ -22,6 +23,11 @@ const IndexRoute = IndexRouteImport.update({
 const DemoRoute = DemoRouteImport.update({
   id: '/demo',
   path: '/demo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DorRoute = DorRouteImport.update({
+  id: '/dor',
+  path: '/dor',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GaestRoute = GaestRouteImport.update({
@@ -38,12 +44,14 @@ const PersonaleRoute = PersonaleRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/demo': typeof DemoRoute
+  '/dor': typeof DorRoute
   '/gaest': typeof GaestRoute
   '/personale': typeof PersonaleRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/demo': typeof DemoRoute
+  '/dor': typeof DorRoute
   '/gaest': typeof GaestRoute
   '/personale': typeof PersonaleRoute
 }
@@ -51,20 +59,22 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/demo': typeof DemoRoute
+  '/dor': typeof DorRoute
   '/gaest': typeof GaestRoute
   '/personale': typeof PersonaleRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/demo' | '/gaest' | '/personale'
+  fullPaths: '/' | '/demo' | '/dor' | '/gaest' | '/personale'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/demo' | '/gaest' | '/personale'
-  id: '__root__' | '/' | '/demo' | '/gaest' | '/personale'
+  to: '/' | '/demo' | '/dor' | '/gaest' | '/personale'
+  id: '__root__' | '/' | '/demo' | '/dor' | '/gaest' | '/personale'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DemoRoute: typeof DemoRoute
+  DorRoute: typeof DorRoute
   GaestRoute: typeof GaestRoute
   PersonaleRoute: typeof PersonaleRoute
 }
@@ -83,6 +93,13 @@ declare module '@tanstack/react-router' {
       path: '/demo'
       fullPath: '/demo'
       preLoaderRoute: typeof DemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dor': {
+      id: '/dor'
+      path: '/dor'
+      fullPath: '/dor'
+      preLoaderRoute: typeof DorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/gaest': {
@@ -105,6 +122,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DemoRoute: DemoRoute,
+  DorRoute: DorRoute,
   GaestRoute: GaestRoute,
   PersonaleRoute: PersonaleRoute,
 }
