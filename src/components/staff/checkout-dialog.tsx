@@ -7,7 +7,8 @@ import { groupBill, lineTotal, type Bill } from '@/lib/billing';
 import { rpc } from '@/lib/cleaning';
 import { errorText } from '@/lib/hotel';
 import { fmtDKK } from '@/lib/money';
-import { field, useStaff, useStaffData } from '@/components/staff/core';
+import { field, useAct, useStaff, useStaffData } from '@/components/staff/core';
+import { RejectOrderDialog, type RejectTarget } from '@/components/staff/reject-dialog';
 import type { GuestRow } from '@/components/staff/guests';
 import { PaymentMethods, useLastMethod } from '@/components/staff/payment';
 
@@ -24,8 +25,16 @@ export function CheckoutDialog({ bookingId, onClose, onOpenBill }: { bookingId: 
   const [busy, setBusy] = useState(false);
   const [openOrders, setOpenOrders] = useState(false);
   const guests = useStaffData<GuestRow[]>('staff_guests', {}, 5000);
-  const blocked = openOrders || (guests.data?.find(g => g.id === bookingId)?.open_orders ?? 0) > 0;
+  const act = useAct();
+  const orders = useStaffData<{ id: string; room_number: string; type: string; details: string; status: string; total_cents?: number }[]>('staff_orders', { _limit: 150 }, 4000);
+  const [rejecting, setRejecting] = useState<RejectTarget | null>(null);
   const b = bill?.booking;
+  const openList = (orders.data ?? []).filter(o => o.room_number === b?.room_number && o.type === 'room_service' && ['pending', 'accepted', 'in_progress', 'ready'].includes(o.status));
+  const blocked = openList.length > 0 || (!orders.data && (openOrders || (guests.data?.find(g => g.id === bookingId)?.open_orders ?? 0) > 0));
+  async function deliver(id: string) {
+    const r = await act('staff_set_order_status', { _order: id, _status: 'done' }, 'Leveret og lagt på regningen');
+    if (r.ok) { await Promise.all([orders.reload(), reload(), guests.reload()]); setOpenOrders(false); }
+  }
   const due = bill?.due_cents ?? 0;
   const alreadyOut = !!b?.checked_out_at;
   const notStarted = !!b && Date.parse(b.starts_at) > Date.now();
@@ -76,8 +85,15 @@ export function CheckoutDialog({ bookingId, onClose, onOpenBill }: { bookingId: 
 
             {blocked && (
               <div role="alert" className="space-y-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm">
-                <p className="flex items-start gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />Der er uafsluttede roomserviceordrer. Lever eller afvis dem, før gæsten tjekker ud.</p>
-                <div className="flex gap-2"><Button size="sm" onClick={() => { onClose(); go('orders'); }}>Gå til ordrer</Button><Button size="sm" variant="outline" onClick={() => { setOpenOrders(false); void reload(); void guests.reload(); }}>Opdater</Button></div>
+                <p className="flex items-start gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />Der er uafsluttede roomserviceordrer. Lever eller afvis dem her, før gæsten tjekker ud.</p>
+                <ul className="divide-y rounded-md border bg-background">
+                  {openList.map(o => (
+                    <li key={o.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                      <span className="min-w-0 flex-1 break-words">{o.details.split(' — Note:')[0]}{o.total_cents ? <span className="block text-xs text-muted-foreground">{fmtDKK(o.total_cents)}</span> : null}</span>
+                      <span className="flex gap-1.5"><Button size="sm" onClick={() => deliver(o.id)}>Lever</Button><Button size="sm" variant="outline" className="text-destructive" onClick={() => setRejecting({ id: o.id, room_number: o.room_number, details: o.details })}>Afvis</Button></span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
             {notStarted && <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm">Opholdet er ikke startet endnu, så gæsten kan ikke tjekkes ud.</p>}
@@ -95,6 +111,7 @@ export function CheckoutDialog({ bookingId, onClose, onOpenBill }: { bookingId: 
           </div>
         )}
       </DialogContent>
+      {rejecting && <RejectOrderDialog order={rejecting} onClose={() => setRejecting(null)} onDone={() => { void orders.reload(); void reload(); void guests.reload(); setOpenOrders(false); }} />}
     </Dialog>
   );
 }

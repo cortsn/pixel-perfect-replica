@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { toast } from 'sonner';
-import { KeyRound, Utensils, Sparkles, Map, Share2, Wifi, Minus, Plus, Leaf, Check, X, ShowerHead, ClipboardList, CalendarDays, DoorOpen, ReceiptText } from 'lucide-react';
+import { KeyRound, Utensils, Sparkles, Map, Share2, Wifi, Minus, Plus, Leaf, Check, X, ShowerHead, ClipboardList, CalendarDays, DoorOpen, ReceiptText, Megaphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PageCard, SettingsGroup, SettingsRow, SubPage } from '@/components/hotel/settings-ui';
 import { StatusPill } from '@/components/hotel/status-pill';
@@ -15,8 +15,9 @@ import { CheckInScreen, StayEndTimer, StayNotice, WaitingScreen } from '@/compon
 import { MealsForm } from '@/components/hotel/meals';
 import { RoomSwitcher } from '@/components/hotel/room-switcher';
 import { StayEndedScreen } from '@/components/hotel/stay-ended';
+import { OrderTrackCard, useOrderNotifications } from '@/components/hotel/order-tracker';
 import { RoomService } from '@/components/hotel/room-service';
-import { ALL_FEATURES, AnnouncementPopup, useAnnouncementPopup, type GuestAnnouncement, type GuestFeatures } from '@/components/hotel/announcements';
+import { ALL_FEATURES, AnnouncementBubble, AnnouncementList, useAnnouncements, type GuestAnnouncement, type GuestFeatures } from '@/components/hotel/announcements';
 import { CleaningForm, CleaningStatusNote } from '@/components/hotel/guest-requests';
 import { rpc, type CleaningRequest } from '@/lib/cleaning';
 import { fmtDKK } from '@/lib/money';
@@ -27,17 +28,17 @@ export const Route = createFileRoute('/gaest')({
  validateSearch:(s:Record<string,unknown>)=>({t:typeof s['t']==='string'?s['t']:undefined}),
  head:()=>({meta:[{title:'Mit ophold — HotelPilot'},{name:'description',content:'Dit værelse, bestillinger, rengøring og aktiviteter på HotelPilot.'},{property:'og:title',content:'Mit ophold — HotelPilot'},{property:'og:description',content:'Din digitale concierge under opholdet.'},{property:'og:type',content:'website'},{name:'twitter:card',content:'summary_large_image'}]}),component:GuestDashboard,
 });
-type Order={id:string;type:string;details:string;status:OrderStatus;created_at:string;total_cents?:number;reject_reason?:string};
+type Order={id:string;type:string;details:string;status:OrderStatus;created_at:string;updated_at?:string;total_cents?:number;reject_reason?:string};
 type GuestBill={items:Pick<BillItem,'id'|'category'|'description'|'quantity'|'unit_price_cents'|'paid'|'created_at'>[];total_cents:number;due_cents:number};
 type Event={id:string;title:string;starts_at:string;location:string;description:string};
-type Sheet='towels'|'clean'|'food'|'share'|'map'|'wifi'|'meals'|'rooms'|'events'|'orders'|'bill'|null;
+type Sheet='towels'|'clean'|'food'|'share'|'map'|'wifi'|'meals'|'rooms'|'events'|'orders'|'bill'|'messages'|null;
 function GuestDashboard(){
  const {t}=Route.useSearch();const navigate=useNavigate();
  const [s,setS]=useState<GuestSession|null>(null);const [error,setError]=useState('');const [expired,setExpired]=useState(false);
  const [orders,setOrders]=useState<Order[]>([]);const [events,setEvents]=useState<Event[]>([]);
  const [sheet,setSheet]=useState<Sheet>(null);const [quantity,setQuantity]=useState(2);const [extras,setExtras]=useState<{cleaning:CleaningRequest|null}>({cleaning:null});const [seenNotice,setSeenNotice]=useState<string|null>(null);const lastNotice=useRef<string|null|undefined>(undefined);
  const [menu,setMenu]=useState<GuestMenu|null>(null);const [bill,setBill]=useState<GuestBill|null>(null);
- const [busy,setBusy]=useState(false);const [features,setFeatures]=useState<GuestFeatures>(ALL_FEATURES);const [announcements,setAnnouncements]=useState<GuestAnnouncement[]>([]);const popup=useAnnouncementPopup(announcements);
+ const [busy,setBusy]=useState(false);const [features,setFeatures]=useState<GuestFeatures>(ALL_FEATURES);const [announcements,setAnnouncements]=useState<GuestAnnouncement[]>([]);const hotelMsgs=useAnnouncements(announcements);useOrderNotifications(orders);
  const [clock,setClock]=useState(0);const [offset,setOffset]=useState(0);const [origin,setOrigin]=useState('');const [wifiConnected,setWifiConnected]=useState(false);
  const state=s?stayState(s.starts_at,s.ends_at,clock):'waiting';
  function fail(e:{message?:string}){const msg=errorText(e);if(e.message?.includes('STAY_EXPIRED')){setExpired(true);setSheet(null);}toast.error(msg);}
@@ -72,7 +73,7 @@ function GuestDashboard(){
  const shareUrl=`${origin}/gaest?t=${s.access_token}`;const progress=cleaningProgress(s.housekeeping_status);const towelNext=towelNextAt(orders,clock);const cleaningNext=cleaningNextAt(extras.cleaning,clock);
  const activeOrders=orders.filter(o=>cancellable(o.status)).length;const mealsChosen=[s.breakfast_choice,s.lunch_choice,s.dinner_choice].filter(Boolean).length;
  const cleaningOpen=extras.cleaning&&['requested','in_progress'].includes(extras.cleaning.status);
- const TITLES:Record<Exclude<Sheet,null>,string>={towels:'Håndklæder',clean:'Rengøring',food:'Room service',share:'Del adgang',map:'Hotelkort',wifi:'Wi-Fi',meals:'Vælg måltider',rooms:'Mine værelser',events:'I dag på hotellet',orders:'Dine bestillinger',bill:'Din regning'};
+ const TITLES:Record<Exclude<Sheet,null>,string>={towels:'Håndklæder',clean:'Rengøring',food:'Room service',share:'Del adgang',map:'Hotelkort',wifi:'Wi-Fi',meals:'Vælg måltider',rooms:'Mine værelser',events:'I dag på hotellet',orders:'Dine bestillinger',messages:'Beskeder fra hotellet',bill:'Din regning'};
  return <div className="mx-auto min-h-screen max-w-md pb-[calc(env(safe-area-inset-bottom)+2rem)]">
  <header className="rounded-b-3xl bg-gradient-forest px-6 pb-7 pt-[calc(env(safe-area-inset-top)+1.75rem)] text-forest-foreground"><div className="flex items-center justify-between"><span className="font-display text-2xl">HotelPilot</span><Button variant="ghost" size="sm" onClick={logout}>Log ud</Button></div><p className="eyebrow mt-6 text-brass">Værelse {s.room_number}</p><h1 className="mt-2 text-4xl">Velkommen, {s.guest_name.split(' ')[0]}</h1><p className="mt-2 text-xs text-forest-foreground/70">Check ud {new Date(s.ends_at).toLocaleString('da-DK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</p></header>
  <main className="space-y-5 px-4 pt-4">
@@ -86,6 +87,7 @@ function GuestDashboard(){
  {orders.length>0&&<SettingsRow Icon={ClipboardList} tone="forest" title="Dine bestillinger" badge={activeOrders} value={activeOrders?undefined:String(orders.length)} onClick={()=>setSheet('orders')}/>}
  </SettingsGroup>
  <SettingsGroup title="Opholdet">
+ {announcements.length>0&&<SettingsRow Icon={Megaphone} tone="brass" title="Beskeder fra hotellet" badge={hotelMsgs.unread.length} value={hotelMsgs.unread.length?undefined:String(announcements.length)} onClick={()=>setSheet('messages')}/>}
  {features.meals&&<SettingsRow Icon={Leaf} tone="clean" title="Vælg måltider" value={mealsChosen?`${mealsChosen} valgt`:undefined} onClick={()=>setSheet('meals')}/>}
  <SettingsRow Icon={Wifi} tone="primary" title="Wi-Fi" value={s.wifi_ssid} onClick={()=>setSheet('wifi')}/>
  {features.map&&<SettingsRow Icon={Map} tone="forest" title="Hotelkort" onClick={()=>setSheet('map')}/>}
@@ -97,12 +99,13 @@ function GuestDashboard(){
  </SettingsGroup>
  <StayEndTimer endsAt={s.ends_at} clock={clock}/>
  </main>
- {sheet&&<SubPage title={TITLES[sheet]} onBack={()=>{if(!busy)setSheet(null);}}>
+ {sheet&&<SubPage title={TITLES[sheet]} onBack={()=>{if(busy)return;if(sheet==='messages')hotelMsgs.markAllRead();setSheet(null);}}>
  {sheet==='towels'&&(()=>{const max=Math.max(1,s.towel_limit);const qty=Math.min(quantity,max);return <PageCard><p className="text-center text-sm text-muted-foreground">Hvor mange håndklæder skal byttes?</p><div className="flex items-center justify-center gap-4"><Button variant="outline" size="icon" className="h-9 w-9 rounded-full" aria-label="Færre håndklæder" disabled={qty<=1} onClick={()=>setQuantity(Math.max(1,qty-1))}><Minus/></Button><span aria-label="Antal håndklæder" className="w-10 text-center text-3xl font-semibold leading-none tabular-nums">{qty}</span><Button variant="outline" size="icon" className="h-9 w-9 rounded-full" aria-label="Flere håndklæder" disabled={qty>=max} onClick={()=>setQuantity(qty+1)}><Plus/></Button></div><p className="text-center text-sm text-muted-foreground">Her bestiller du poolhåndklæder. De byttes og leveres til værelset. Du kan bestille op til {max} ad gangen (lige så mange som personer på værelset), 1 gang hver 12. time. Almindelige værelseshåndklæder skiftes ved rengøring.</p>{towelNext&&<p role="status" className="rounded-md bg-secondary p-3 text-sm">Du har allerede bestilt håndklæder. Du kan bestille igen kl. {hm(new Date(towelNext).toISOString())}.</p>}<Button className="w-full" disabled={busy||!!towelNext} onClick={sendTowels}>Bestil {qty} {qty===1?'håndklæde':'håndklæder'}</Button></PageCard>;})()}
  {sheet==='food'&&<PageCard><RoomService room={s.room_number} menu={menu} busy={busy} stayEndsAt={s.ends_at} onSubmit={sendMenuOrder}/></PageCard>}
  {sheet==='bill'&&<PageCard>{!bill||bill.items.length===0?<p className="text-sm text-muted-foreground">Der er endnu intet på din regning. Roomservice og andre køb dukker op her, så snart de er leveret.</p>:<><ul className="divide-y">{bill.items.map(i=><li key={i.id} className="flex items-start justify-between gap-3 py-2.5"><span className="min-w-0"><span className="block break-words text-sm">{i.quantity>1?`${i.quantity}× `:''}{i.description}</span><span className="text-xs text-muted-foreground">{categoryLabel(i.category)}</span></span><span className="shrink-0 text-sm tabular-nums">{fmtDKK(i.quantity*i.unit_price_cents)}</span></li>)}</ul><div className="flex justify-between border-t pt-3 font-semibold"><span>I alt</span><span>{fmtDKK(bill.total_cents)}</span></div></>}<p className="rounded-md bg-secondary p-3 text-xs text-muted-foreground">Regningen betales ved check ud i receptionen. Nye køb kommer på, når de er leveret.</p></PageCard>}
  {sheet==='clean'&&<><PageCard><p className="text-sm">Almindelige værelseshåndklæder skiftes ved rengøring.</p>{extras.cleaning&&<><CleaningStatusNote req={extras.cleaning}/><progress aria-label="Rengøringsstatus" value={progress} max={100} className="hotel-progress h-2 w-full"/><div className="flex justify-between text-xs text-muted-foreground"><span>Modtaget</span><span>I gang</span><span>Gennemført</span></div></>}</PageCard>{!cleaningOpen&&(cleaningNext?<PageCard><p role="status" className="rounded-md bg-secondary p-3 text-sm">Du har allerede bestilt rengøring. Du kan bestille igen kl. {hm(new Date(cleaningNext).toISOString())} (rengøring kan bestilles 1 gang hver 12. time). Er rengøringen ikke nået, kan du bestille igen med det samme.</p></PageCard>:<PageCard><CleaningForm room={s.room_number} guests={s.guests} busy={busy} onSubmit={requestCleaning}/></PageCard>)}</>}
- {sheet==='orders'&&<PageCard><ul className="divide-y">{orders.map(o=><li key={o.id} className="py-3 first:pt-0 last:pb-0"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="break-words text-sm">{o.details||'Håndklæder'}</p>{!!o.total_cents&&<p className="text-xs text-muted-foreground">{fmtDKK(o.total_cents)}</p>}{o.status==='rejected'&&<p className="text-xs text-destructive">Afvist{o.reject_reason?`: ${o.reject_reason}`:''}</p>}</div><StatusPill status={o.status}/></div>{cancellable(o.status)&&<Button size="sm" variant="ghost" className="mt-2 text-destructive" disabled={busy} onClick={()=>cancel(o.id)}><X/>Annuller bestilling</Button>}</li>)}</ul></PageCard>}
+ {sheet==='orders'&&<PageCard><ul className="divide-y">{[...orders].sort((x,y)=>Number(!cancellable(y.status)&&y.status!=='ready')-Number(!cancellable(x.status)&&x.status!=='ready')||Date.parse(y.created_at)-Date.parse(x.created_at)).map(o=><OrderTrackCard key={o.id} o={o}>{cancellable(o.status)&&<Button size="sm" variant="ghost" className="mt-2 text-destructive" disabled={busy} onClick={()=>cancel(o.id)}><X/>Annuller bestilling</Button>}</OrderTrackCard>)}</ul></PageCard>}
+ {sheet==='messages'&&<PageCard><AnnouncementList list={announcements} isUnread={hotelMsgs.isUnread}/></PageCard>}
  {sheet==='meals'&&<PageCard><MealsForm choices={s} busy={busy} onChoose={meal}/></PageCard>}
  {sheet==='wifi'&&<><div className="rounded-2xl bg-gradient-forest p-5 text-forest-foreground"><div className="grid grid-cols-2 gap-3 text-sm"><div><p className="text-xs opacity-60">Netværk</p><p className="break-all">{s.wifi_ssid}</p></div><div><p className="text-xs opacity-60">Adgangskode</p><p className="break-all font-mono">{s.wifi_password}</p></div></div></div><PageCard><p className="eyebrow text-brass">HotelPilot · Netværkslogin</p><p className="text-sm text-muted-foreground">Simuleret Wi-Fi-login</p>{wifiConnected?<div className="flex items-center gap-3 py-2"><Check className="text-status-clean"/><p>Du er koblet på {s.wifi_ssid}</p></div>:<Button className="w-full" disabled={busy} onClick={()=>{setWifiConnected(true);toast.success('Wi-Fi-forbindelse simuleret');}}>Kobl på hotellets netværk</Button>}</PageCard></>}
  {sheet==='map'&&<PageCard><HotelMap room={s.room_number}/></PageCard>}
@@ -110,6 +113,6 @@ function GuestDashboard(){
  {sheet==='share'&&<PageCard><p className="text-sm">Scan koden eller del linket. Der er plads til {s.max_devices} enheder ({s.guests} {s.guests===1?'person':'personer'} + 2 ekstra) · {s.devices} tilknyttet.</p><div className="flex justify-center rounded-lg bg-secondary p-5"><QRCodeSVG value={shareUrl} size={180} bgColor="transparent" fgColor="currentColor"/></div><div className="grid grid-cols-2 gap-2"><Button onClick={async()=>{try{await navigator.clipboard.writeText(shareUrl);toast.success('Link kopieret');}catch{toast.error('Linket kunne ikke kopieres');}}}>Kopiér link</Button><Button variant="outline" onClick={async()=>{const r=await shareLink({title:'HotelPilot',text:`Her er adgang til værelse ${s.room_number} på HotelPilot:`,url:shareUrl});if(r==='copied')toast.success('Link kopieret');else if(r==='failed')toast.error('Linket kunne ikke deles');}}><Share2/>Del link</Button></div></PageCard>}
  {sheet==='rooms'&&(()=>{const st=listStored();return <PageCard><RoomSwitcher rooms={st.rooms} active={st.active} onOpen={openRoom} onAdd={()=>{void navigate({to:'/'});}}/></PageCard>;})()}
  </SubPage>}
- <AnnouncementPopup announcement={popup.current} onClose={popup.dismiss}/>
+ {!sheet&&<AnnouncementBubble count={hotelMsgs.unread.length} onOpen={()=>setSheet('messages')}/>}
  </div>;
 }

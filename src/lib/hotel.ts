@@ -30,6 +30,7 @@ export type GuestSession = {
 export type HousekeepingStatus = "occupied" | "needs_cleaning" | "cleaning" | "clean";
 export type OrderStatus = "pending" | "accepted" | "in_progress" | "ready" | "done" | "rejected" | "cancelled";
 
+export const DEFAULT_REJECT_MESSAGE = "Vi kan desværre ikke levere din bestilling lige nu.";
 export const HOUSEKEEPING_LABELS: Record<HousekeepingStatus, string> = {
   occupied: "Gæst på værelset",
   needs_cleaning: "Skal rengøres",
@@ -112,6 +113,7 @@ export function errorText(e: { message?: string } | null) {
   if (m.includes("BOOKING_NOT_FOUND")) return "Opholdet findes ikke længere.";
   if (m.includes("INVALID_STAY")) return "Sluttidspunktet skal være efter starttidspunktet.";
   if (m.includes("ROOMSERVICE_STAY_ENDING")) return "Roomservice lukker 2 timer før dit ophold slutter.";
+  if (m.includes("INVALID_EXPIRY")) return "Vælg et tidspunkt i fremtiden.";
   if (m.includes("FEATURE_OFF")) return "Denne funktion er slået fra lige nu.";
   if (m.includes("NO_GUEST_IN_ROOM")) return "Der bor ingen gæst på værelset.";
   if (m.includes("INVALID_MESSAGE")) return "Skriv en besked på op til 500 tegn.";

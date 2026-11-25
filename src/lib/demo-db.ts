@@ -51,14 +51,16 @@ const sum = (xs: Bill[]) => xs.reduce((s, i) => s + i.quantity * i.unit_price_ce
 
 type State = {
   rooms: DemoRoom[]; bookings: DemoBooking[]; orders: DemoOrder[]; bills: Bill[]; cleaning: Cleaning[]; checkouts: Checkout[];
-  cats: Cat[]; items: Item[]; settings: { enabled: boolean; opens_at: string; closes_at: string };
+  cats: Cat[]; items: Item[]; settings: { enabled: boolean; opens_at: string; closes_at: string; reject_message: string };
   feedback: { id: string; booking_id: string; room_number: string; rating: number; comment: string; created_at: string }[];
   emails: { id: string; booking_id: string; recipient: string; subject: string; status: string; created_at: string }[];
   members: Member[]; wifi: { ssid: string; password: string };
   payments: Payment[]; devices: Device[]; images: Record<string, { data: string; ver: number }>;
   features: Record<'towels' | 'cleaning' | 'meals' | 'events' | 'map', boolean>;
-  announcements: { id: string; message: string; created_by: string; created_at: string; removed_at: string | null }[];
+  announcements: { id: string; message: string; created_by: string; created_at: string; removed_at: string | null; expires_at: string | null }[];
 };
+
+export const DEFAULT_REJECT = 'Vi kan desværre ikke levere din bestilling lige nu.';
 
 function seed(): State {
   const now = Date.now(), H = 3600e3, M = 60e3;
@@ -124,7 +126,7 @@ function seed(): State {
     dev('b-HP-3002', now - 29 * H, now - 2 * H, 4),
     dev('b-HP-3004', now - 8 * H, now - 5 * M, 5), dev('b-HP-3004', now - 7 * H, now - 40 * M, 1), dev('b-HP-3004', now - 6 * H, null),
   ];
-  return { rooms, bookings, orders, bills, cleaning, checkouts: [], cats, items, settings: { enabled: true, opens_at: '00:00', closes_at: '00:00' }, feedback, emails: [], members: [], wifi: { ssid: 'HotelPilot_Guest', password: 'Nordlys2026' }, payments: [], devices, images: {}, features: { towels: true, cleaning: true, meals: true, events: true, map: true }, announcements: [] };
+  return { rooms, bookings, orders, bills, cleaning, checkouts: [], cats, items, settings: { enabled: true, opens_at: '00:00', closes_at: '00:00', reject_message: DEFAULT_REJECT }, feedback, emails: [], members: [], wifi: { ssid: 'HotelPilot_Guest', password: 'Nordlys2026' }, payments: [], devices, images: {}, features: { towels: true, cleaning: true, meals: true, events: true, map: true }, announcements: [] };
 }
 
 let S: State = seed();
@@ -182,6 +184,7 @@ const roomCare = (room: string) => {
 
 const H: Record<string, (a: Dict) => unknown> = {
   staff_room_care: a => roomCare(String(a['_room'])),
+  staff_set_reject_message: a => { const m = String(a['_message'] ?? '').trim(); if (!m || m.length > 200) err('INVALID_MESSAGE'); S.settings.reject_message = m; return null; },
   staff_features: () => featuresNow(),
   staff_set_feature: a => {
     const k = String(a['_key']), on = a['_enabled'];
@@ -195,7 +198,9 @@ const H: Record<string, (a: Dict) => unknown> = {
     const m = String(a['_message'] ?? '').trim();
     if (!m || m.length > 500) err('INVALID_MESSAGE');
     const id = uid('an');
-    S.announcements.unshift({ id, message: m, created_by: WHO, created_at: iso(Date.now()), removed_at: null });
+    const exp = a['_expires_at'] ? String(a['_expires_at']) : null;
+    if (exp && ts(exp) <= Date.now()) err('INVALID_EXPIRY');
+    S.announcements.unshift({ id, message: m, created_by: WHO, created_at: iso(Date.now()), removed_at: null, expires_at: exp });
     return id;
   },
   staff_announcements: () => S.announcements.slice(0, 30),
@@ -249,7 +254,7 @@ const H: Record<string, (a: Dict) => unknown> = {
     if (!['pending', 'accepted', 'in_progress', 'ready', 'done', 'rejected'].includes(st)) err('INVALID_STATUS');
     if (o.cancelled || ['cancelled', 'done', 'rejected'].includes(o.status)) err('ORDER_CLOSED');
     o.status = st; o.updated_at = iso(Date.now());
-    if (st === 'rejected') o.reject_reason = String(a['_reason'] ?? '').slice(0, 200);
+    if (st === 'rejected') o.reject_reason = (String(a['_reason'] ?? '').trim() || S.settings.reject_message).slice(0, 200);
     if (st === 'done' && o.type === 'room_service' && o.booking_id && !o.paid) {
       o.items.forEach((l, idx) => {
         if (S.bills.some(b => b.order_id === o.id && b.order_line === idx + 1)) return;
@@ -577,9 +582,9 @@ export const demoGuest = {
     return id;
   },
   features: () => featuresNow(),
-  announcements: () => { const b = demoGuest.booking(); return S.announcements.filter(n => !n.removed_at && ts(n.created_at) > Date.now() - 24 * 3600e3 && ts(n.created_at) >= ts(b.starts_at) - 2 * 3600e3).slice(0, 5).map(n => ({ id: n.id, message: n.message, created_at: n.created_at })); },
+  announcements: () => { const b = demoGuest.booking(); return S.announcements.filter(n => !n.removed_at && (!n.expires_at || ts(n.expires_at) > Date.now()) && ts(n.created_at) >= ts(b.starts_at) - 2 * 3600e3).slice(0, 30).map(n => ({ id: n.id, message: n.message, created_at: n.created_at })); },
   orders: () => S.orders.filter(o => o.booking_id === demoGuest.booking().id).sort((a, c) => ts(c.created_at) - ts(a.created_at)).slice(0, 20)
-    .map(o => ({ id: o.id, type: o.type, details: o.details, status: statusOf(o), created_at: o.created_at, total_cents: o.total_cents, reject_reason: o.reject_reason })),
+    .map(o => ({ id: o.id, type: o.type, details: o.details, status: statusOf(o), created_at: o.created_at, updated_at: o.updated_at, total_cents: o.total_cents, reject_reason: o.reject_reason })),
   cancelOrder(id: string) {
     const o = S.orders.find(x => x.id === id && x.booking_id === demoGuest.booking().id);
     if (!o || o.cancelled || !['pending', 'accepted', 'in_progress'].includes(o.status)) err('ORDER_NOT_CANCELLABLE');

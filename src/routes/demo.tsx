@@ -1,10 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
-import { Check, ChevronDown, ClipboardList, DoorOpen, KeyRound, Leaf, Minus, Plus, ReceiptText, RotateCcw, Share2, ShowerHead, Sparkles, Utensils, Wifi } from "lucide-react";
+import { Check, ChevronDown, ClipboardList, DoorOpen, KeyRound, Leaf, Megaphone, Minus, Plus, ReceiptText, RotateCcw, Share2, ShowerHead, Sparkles, Utensils, Wifi } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { Logo } from "@/components/hotel/logo";
-import { ALL_FEATURES, AnnouncementPopup, useAnnouncementPopup } from "@/components/hotel/announcements";
+import { OrderTrackCard, useOrderNotifications } from "@/components/hotel/order-tracker";
+import { ALL_FEATURES, AnnouncementBubble, AnnouncementList, useAnnouncements } from "@/components/hotel/announcements";
 import { PageCard, SettingsGroup, SettingsRow, SubPage } from "@/components/hotel/settings-ui";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -87,8 +88,8 @@ function Demo() {
     : <div className="min-h-screen">{bar}<GuestDemo /></div>;
 }
 
-type GuestSheet = "towels" | "clean" | "food" | "orders" | "bill" | "meals" | "wifi" | "share" | "rooms" | null;
-const TITLES: Record<Exclude<GuestSheet, null>, string> = { towels: "Håndklæder", clean: "Rengøring", food: "Room service", orders: "Dine bestillinger", bill: "Din regning", meals: "Vælg måltider", wifi: "Wi-Fi", share: "Del adgang", rooms: "Mine værelser" };
+type GuestSheet = "towels" | "clean" | "food" | "orders" | "bill" | "meals" | "wifi" | "share" | "rooms" | "messages" | null;
+const TITLES: Record<Exclude<GuestSheet, null>, string> = { messages: "Beskeder fra hotellet", towels: "Håndklæder", clean: "Rengøring", food: "Room service", orders: "Dine bestillinger", bill: "Din regning", meals: "Vælg måltider", wifi: "Wi-Fi", share: "Del adgang", rooms: "Mine værelser" };
 
 /** Gæstesiden i demoen: samme opbygning som den rigtige, men med demo-databasen som kilde. */
 function GuestDemo() {
@@ -98,7 +99,10 @@ function GuestDemo() {
   const [qty, setQty] = useState(1);
   const [seen, setSeen] = useState<string | null>(null);
   const [rated, setRated] = useState(false);
-  const popup = useAnnouncementPopup(demoGuest.announcements(), false);
+  const announcements = demoGuest.announcements();
+  const hotelMsgs = useAnnouncements(announcements, false);
+  const trackedOrders = demoGuest.orders();
+  useOrderNotifications(trackedOrders);
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
   useEffect(() => { demoGuest.touch(); const t = setInterval(() => demoGuest.touch(), 30000); return () => clearInterval(t); }, []);
 
@@ -133,7 +137,7 @@ function GuestDemo() {
   const meals = { breakfast_choice: b.breakfast_choice, lunch_choice: b.lunch_choice, dinner_choice: b.dinner_choice };
   const mealsChosen = Object.values(meals).filter(Boolean).length;
   const wifi = demoStore._state().wifi;
-  const close = () => setSheet(null);
+  const close = () => { if (sheet === "messages") hotelMsgs.markAllRead(); setSheet(null); };
   const features = { ...ALL_FEATURES, ...demoGuest.features() };
 
   return (
@@ -159,6 +163,7 @@ function GuestDemo() {
         </SettingsGroup>
         <SettingsGroup title="Opholdet">
           {features.meals && <SettingsRow Icon={Leaf} tone="clean" title="Vælg måltider" value={mealsChosen ? `${mealsChosen} valgt` : undefined} onClick={() => setSheet("meals")} />}
+          {announcements.length > 0 && <SettingsRow Icon={Megaphone} tone="brass" title="Beskeder fra hotellet" badge={hotelMsgs.unread.length} value={hotelMsgs.unread.length ? undefined : String(announcements.length)} onClick={() => setSheet("messages")} />}
           <SettingsRow Icon={Wifi} tone="primary" title="Wi-Fi" value={wifi.ssid} onClick={() => setSheet("wifi")} />
         </SettingsGroup>
         <SettingsGroup>
@@ -167,7 +172,7 @@ function GuestDemo() {
         </SettingsGroup>
         <StayEndTimer endsAt={b.ends_at} clock={now} />
       </main>
-      <AnnouncementPopup announcement={popup.current} onClose={popup.dismiss} />
+      {!sheet && <AnnouncementBubble count={hotelMsgs.unread.length} onOpen={() => setSheet("messages")} />}
 
       {sheet && <SubPage title={TITLES[sheet]} onBack={close}>
         {sheet === "towels" && <PageCard>
@@ -188,14 +193,8 @@ function GuestDemo() {
             ? <PageCard><p role="status" className="rounded-md bg-secondary p-3 text-sm">Du har allerede bestilt rengøring. Du kan bestille igen kl. {hm(new Date(cleaningNext).toISOString())} (rengøring kan bestilles 1 gang hver 12. time). Er rengøringen ikke nået, kan du bestille igen med det samme.</p></PageCard>
             : <PageCard><CleaningForm room={b.room_number} guests={guests} onSubmit={(towels, from, until) => run(() => { demoGuest.requestCleaning(towels, from, until); toast.success("Personalet er underrettet."); })} /></PageCard>)}
         </>}
-        {sheet === "orders" && <PageCard><ul className="divide-y">{orders.map((o) => (
-          <li key={o.id} className="py-3 first:pt-0 last:pb-0">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0"><p className="break-words text-sm">{o.details}</p>{!!o.total_cents && <p className="text-xs text-muted-foreground">{fmtDKK(o.total_cents)}</p>}{o.status === "rejected" && <p className="text-xs text-destructive">Afvist{o.reject_reason ? `: ${o.reject_reason}` : ""}</p>}</div>
-              <StatusPill status={o.status as OrderStatus} />
-            </div>
-            {cancellable(o.status) && <Button size="sm" variant="ghost" className="mt-2 text-destructive" onClick={() => run(() => { demoGuest.cancelOrder(o.id); toast.success("Bestillingen er annulleret"); })}>Annuller bestilling</Button>}
-          </li>))}</ul></PageCard>}
+        {sheet === "orders" && <PageCard><ul className="divide-y">{[...orders].sort((x, y) => Number(!cancellable(y.status) && y.status !== "ready") - Number(!cancellable(x.status) && x.status !== "ready") || Date.parse(y.created_at) - Date.parse(x.created_at)).map((o) => (
+          <OrderTrackCard key={o.id} o={o}>{cancellable(o.status) && <Button size="sm" variant="ghost" className="mt-2 text-destructive" onClick={() => run(() => { demoGuest.cancelOrder(o.id); toast.success("Bestillingen er annulleret"); })}>Annuller bestilling</Button>}</OrderTrackCard>))}</ul></PageCard>}
         {sheet === "bill" && <PageCard>
           {bill.items.length === 0
             ? <p className="text-sm text-muted-foreground">Der er endnu intet på din regning. Roomservice og andre køb dukker op her, så snart de er leveret.</p>
@@ -203,6 +202,7 @@ function GuestDemo() {
               <div className="flex justify-between border-t pt-3 font-semibold"><span>I alt</span><span>{fmtDKK(bill.total_cents)}</span></div></>}
           <p className="rounded-md bg-secondary p-3 text-xs text-muted-foreground">Regningen betales ved check ud i receptionen. Nye køb kommer på, når de er leveret.</p>
         </PageCard>}
+        {sheet === "messages" && <PageCard><AnnouncementList list={announcements} isUnread={hotelMsgs.isUnread} /></PageCard>}
         {sheet === "meals" && <PageCard><MealsForm choices={meals} onChoose={(m: Meal, c) => { const f = MEAL_FIELD[m]; demoGuest.setMeal(m, meals[f] === c ? null : c); toast.success("Tak for dit svar"); }} /></PageCard>}
         {sheet === "wifi" && <div className="rounded-2xl bg-gradient-forest p-5 text-forest-foreground"><div className="grid grid-cols-2 gap-3 text-sm"><div><p className="text-xs opacity-60">Netværk</p><p className="break-all">{wifi.ssid}</p></div><div><p className="text-xs opacity-60">Adgangskode</p><p className="break-all font-mono">{wifi.password}</p></div></div></div>}
         {sheet === "share" && <PageCard>

@@ -311,6 +311,30 @@ describe('demo-database: samme regler som SQL', () => {
     expect(demoGuest.announcements()).toHaveLength(0);
   });
 
+  it('beskeder kan have udløb, og gamle beskeder bliver i historikken', async () => {
+    expect(await fails('staff_post_announcement', { _message: 'x', _expires_at: new Date(Date.now() - 1000).toISOString() })).toBe('INVALID_EXPIRY');
+    await call('staff_post_announcement', { _message: 'Kort', _expires_at: new Date(Date.now() + 3600e3).toISOString() });
+    await call('staff_post_announcement', { _message: 'Hele opholdet' });
+    expect(demoGuest.announcements().map(a => a.message).sort()).toEqual(['Hele opholdet', 'Kort']);
+    demoStore._state().announcements.find(a => a.message === 'Kort')!.expires_at = new Date(Date.now() - 1000).toISOString();
+    expect(demoGuest.announcements().map(a => a.message)).toEqual(['Hele opholdet']);
+  });
+
+  it('afvisning uden årsag bruger standardbeskeden, og standardbeskeden kan rettes', async () => {
+    demoGuest.checkIn();
+    const item = demoGuest.menu().categories.flatMap(c => c.items).find(i => i.variants.length === 0 && i.addons.length === 0)!;
+    demoGuest.orderMenu([{ item_id: item.id, qty: 1, variant: null, addons: [] }], '');
+    const open = () => demoGuest.orders().find(o => o.type === 'room_service' && o.status === 'pending')!;
+    await call('staff_set_order_status', { _order: open().id, _status: 'rejected', _reason: '  ' });
+    expect(demoGuest.orders().find(o => o.status === 'rejected')!.reject_reason).toBe('Vi kan desværre ikke levere din bestilling lige nu.');
+    await call('staff_set_reject_message', { _message: 'Køkkenet er lukket' });
+    expect((await call('staff_settings')).roomservice.reject_message).toBe('Køkkenet er lukket');
+    demoGuest.orderMenu([{ item_id: item.id, qty: 1, variant: null, addons: [] }], '');
+    await call('staff_set_order_status', { _order: open().id, _status: 'rejected', _reason: 'Udsolgt' });
+    expect(demoGuest.orders().filter(o => o.status === 'rejected').map(o => o.reject_reason)).toContain('Udsolgt');
+    expect(await fails('staff_set_reject_message', { _message: '' })).toBe('INVALID_MESSAGE');
+  });
+
   it('poolhåndklæder fra opgaver lukker gæstens bestilling og starter 12-timers reglen', async () => {
     demoGuest.checkIn();
     demoGuest.orderTowels(1);
