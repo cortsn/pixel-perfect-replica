@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
-import { Check, ChevronDown, ClipboardList, DoorOpen, KeyRound, Leaf, Megaphone, Minus, Plus, ReceiptText, RotateCcw, Share2, ShowerHead, Sparkles, Utensils, Wifi } from "lucide-react";
+import { Check, ChevronDown, ClipboardList, DoorOpen, KeyRound, Leaf, Megaphone, Minus, Plus, ReceiptText, RotateCcw, Share2, Smartphone, ShowerHead, Sparkles, Utensils, Wifi } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { Logo } from "@/components/hotel/logo";
 import { OrderTrackCard, useOrderNotifications } from "@/components/hotel/order-tracker";
@@ -20,6 +20,8 @@ import { CleaningForm, CleaningStatusNote } from "@/components/hotel/guest-reque
 import { CheckInScreen, StayEndTimer, StayNotice, WaitingScreen } from "@/components/hotel/stay";
 import { setRpcBackend, type CleaningRequest } from "@/lib/cleaning";
 import { DEMO_PIN, demoGuest, demoRpc, demoStore } from "@/lib/demo-db";
+import { DemoSyncDialog } from "@/components/hotel/demo-sync-dialog";
+import { cleanCode, savedSyncCode, saveSyncCode, startDemoSync, type SyncStatus } from "@/lib/demo-sync";
 import { sendDoorOpen } from "@/lib/door-signal";
 import { categoryLabel } from "@/lib/billing";
 import { errorText, HOUSEKEEPING_LABELS, MEAL_FIELD, type Meal, type OrderStatus } from "@/lib/hotel";
@@ -36,11 +38,13 @@ export const Route = createFileRoute("/demo")({
       { name: "robots", content: "noindex" },
     ],
   }),
+  validateSearch: (s: Record<string, unknown>): { kode?: string } => { const k = typeof s['kode'] === 'string' ? cleanCode(s['kode']) : ''; return k ? { kode: k } : {}; },
   component: Demo,
 });
 
 // Alt på denne side kører på en database i browseren (src/lib/demo-db.ts). Gæstesiden og personalesiden deler den,
-// så en bestilling fra gæsten dukker op hos personalet. Der sendes intet til en server, og alt nulstilles ved genindlæsning.
+// så en bestilling fra gæsten dukker op hos personalet. Alt nulstilles ved genindlæsning. Som standard sendes intet til en server;
+// først når man forbinder enheder (kode/QR), deles demoens eksempeldata mellem dem via en Supabase broadcast-kanal (src/lib/demo-sync.ts).
 
 /** Opdaterer komponenten, hver gang demo-databasen ændres. */
 const useDemoVersion = () => useSyncExternalStore(demoStore.subscribe, demoStore.version, demoStore.version);
@@ -50,6 +54,12 @@ function Demo() {
   const [view, setView] = useState<"guest" | "staff">("guest");
   const [nav, setNav] = useState(() => resolveNav("dashboard"));
   const phone = usePhone();
+  const { kode } = Route.useSearch();
+  // Synkronisering mellem enheder: en kode i adressen (fra QR-koden) eller den sidst brugte kode i denne fane.
+  const [syncCode, setSyncCode] = useState<string | null>(() => kode ?? savedSyncCode());
+  const [syncHost, setSyncHost] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>({ connected: false, peers: 0 });
+  const [syncOpen, setSyncOpen] = useState(false);
   useEffect(() => {
     // Personalesiden bruger de samme sider som den rigtige side, men med demo-databasen som datakilde.
     demoStore.reset();
@@ -57,6 +67,11 @@ function Demo() {
     setReady(true);
     return () => setRpcBackend(null);
   }, []);
+  useEffect(() => {
+    if (!ready || !syncCode) return;
+    saveSyncCode(syncCode);
+    return startDemoSync(syncCode, setSyncStatus, syncHost);
+  }, [ready, syncCode, syncHost]);
   if (!ready || phone === null) return <div className="min-h-screen" aria-busy="true" />;
   // På telefonen vises kun gæsteappen: ingen skift til personale og ingen demo-tekster.
   if (phone) return <div className="min-h-screen"><GuestDemo /></div>;
@@ -78,14 +93,19 @@ function Demo() {
         </DropdownMenu>
         {view === "guest" && <Button variant="ghost" size="sm" onClick={() => demoGuest.endStay()}>Afslut gæstens ophold</Button>}
         <Button variant="ghost" size="sm" onClick={() => { demoStore.reset(); toast("Demoen er nulstillet"); }}><RotateCcw />Nulstil demo</Button>
+        <Button variant={syncCode && syncStatus.peers > 1 ? "default" : "outline"} size="sm" onClick={() => setSyncOpen(true)}><Smartphone />{syncCode ? (syncStatus.peers > 1 ? `${syncStatus.peers} enheder forbundet` : "Synkroniserer…") : "Forbind enhed"}</Button>
         <Link to="/" className="text-sm text-muted-foreground underline">Til forsiden</Link>
       </nav>
     </>
   );
 
+  const syncDialog = syncOpen && (
+    <DemoSyncDialog code={syncCode} status={syncStatus} onClose={() => setSyncOpen(false)}
+      onStart={(c, host) => { setSyncHost(host); setSyncCode(c); }} onStop={() => { saveSyncCode(null); setSyncCode(null); setSyncHost(false); setSyncStatus({ connected: false, peers: 0 }); }} />
+  );
   return view === "staff"
-    ? <StaffShell pin={DEMO_PIN} section={nav.section} page={nav.page} onNavigate={(s: Section, p?: string) => setNav(resolveNav(s, p))} onLogout={() => setView("guest")} demoBar={bar} />
-    : <div className="min-h-screen">{bar}<GuestDemo /></div>;
+    ? <StaffShell pin={DEMO_PIN} section={nav.section} page={nav.page} onNavigate={(s: Section, p?: string) => setNav(resolveNav(s, p))} onLogout={() => setView("guest")} demoBar={<>{bar}{syncDialog}</>} />
+    : <div className="min-h-screen">{bar}{syncDialog}<GuestDemo /></div>;
 }
 
 type GuestSheet = "towels" | "clean" | "food" | "orders" | "bill" | "meals" | "wifi" | "share" | "rooms" | "messages" | null;

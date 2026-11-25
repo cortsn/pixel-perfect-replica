@@ -132,7 +132,8 @@ function seed(): State {
 let S: State = seed();
 let version = 0;
 const listeners = new Set<() => void>();
-const emit = () => { version++; listeners.forEach(l => l()); };
+let lastRemote = false;
+const emit = (remote = false) => { version++; lastRemote = remote; listeners.forEach(l => l()); };
 
 const bookingOf = (id: string) => S.bookings.find(b => b.id === id) ?? err('BOOKING_NOT_FOUND');
 const billOf = (id: string) => S.bills.filter(b => b.booking_id === id);
@@ -616,6 +617,17 @@ export const demoStore = {
   subscribe(l: () => void) { listeners.add(l); return () => { listeners.delete(l); }; },
   version: () => version,
   reset() { S = seed(); emit(); },
+  /** Til synkronisering mellem enheder: hele demoens tilstand (uden menubilleder, som er store). */
+  exportState: (): string => JSON.stringify({ ...S, images: {} }),
+  /** Overtager en anden enheds tilstand. Udløser ikke en ny udsendelse. */
+  importState(json: string) {
+    const next = JSON.parse(json) as State;
+    if (!next || !Array.isArray(next.rooms) || !Array.isArray(next.bookings)) throw new Error('Ugyldig demotilstand');
+    S = { ...next, images: S.images };
+    emit(true);
+  },
+  /** Var den seneste ændring modtaget fra en anden enhed? */
+  lastChangeWasRemote: () => lastRemote,
   /** Til tests. */
   _state: () => S,
 };
